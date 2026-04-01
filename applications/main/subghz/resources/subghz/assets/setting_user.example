@@ -17,13 +17,40 @@ Version: 1
 #Hopper_frequency: 310000000
 #Hopper_frequency: 310000000
 
-# Custom preset
+# Custom presets
 # format for CC1101 "Custom_preset_data:" XX YY XX YY .. 00 00 ZZ ZZ ZZ ZZ ZZ ZZ ZZ ZZ, where: XX-register, YY - register data, 00 00 - end load register, ZZ - 8 byte Pa table register
 
-#Custom_preset_name: AM_1
-#Custom_preset_module: CC1101
-#Custom_preset_data: 02 0D 03 07 08 32 0B 06 14 00 13 00 12 30 11 32 10 17 18 18 19 18 1D 91 1C 00 1B 07 20 FB 22 11 21 B6 00 00 00 C0 00 00 00 00 00 00
+# OOK Long Range - wider bandwidth filter, high sensitivity for distant signals
+Custom_preset_name: OOK_LR
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 F8 11 32 12 30 14 00 15 00 18 18 19 16 1B 07 1C 00 1D B1 20 FB 21 B6 22 11 00 00 00 C0 00 00 00 00 00 00
 
-#Custom_preset_name: AM_2
-#Custom_preset_module: CC1101
-#Custom_preset_data: 02 0D 03 07 08 32 0B 06 14 00 13 00 12 30 11 32 10 17 18 18 19 18 1D 91 1C 00 1B 07 20 FB 22 11 21 B6 00 00 00 C0 00 00 00 00 00 00
+# OOK Ultra - similar to OOK_LR with additional AGC configuration for uncertain/unknown OOK signals
+Custom_preset_name: OOK_U
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 F8 11 32 12 30 14 00 15 00 17 0C 18 18 19 16 1B 07 1C 00 1D B1 20 FB 21 B6 22 11 2C 81 2D 35 2E 09 00 00 00 C0 00 00 00 00 00 00
+
+# Alternative AM/OOK tuning with different IF filter bandwidth and AGC settings
+Custom_preset_name: AM_1
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 C9 11 F8 12 30 14 00 15 14 18 18 19 16 1B 07 1C 00 1D 91 20 FB 21 55 22 00 00 00 00 C0 00 00 00 00 00 00
+
+# FSK variant with 2-FSK modulation, different deviation and data rate
+Custom_preset_name: FSK_1
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 03 47 08 32 0B 0C 10 C7 11 93 12 00 13 22 14 F8 15 35 18 18 19 1D 1B 04 1C 00 1D 92 20 FB 21 B6 22 17 00 00 12 0E 1D 34 60 84 C8 C0
+
+# Aggressive FSK preset with packet engine and sync word settings for specific protocol decoding
+Custom_preset_name: F3
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 03 47 08 32 0B 06 0C 00 0D 10 0D 0D 10 C5 11 83 12 80 13 22 14 F8 15 42 16 07 17 30 18 18 19 1D 1A 1C 1B 43 1C 40 1D 91 20 FB 21 B6 22 00 23 E9 24 2A 25 00 26 1F 2C 81 2D 35 2E 09 00 00 12 0E 1D 34 60 84 C8 C0
+
+# FM with 9.5 kHz deviation for narrow FM signals
+Custom_preset_name: FM95
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 67 11 83 12 04 13 02 15 24 18 18 19 16 1B 07 1C 00 1D 91 20 FB 21 56 22 10 00 00 C0 00 00 00 00 00 00 00
+
+# FM with 15 kHz deviation for wider FM signals
+Custom_preset_name: FM15k
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 03 47 08 32 0B 06 10 A7 11 32 12 00 13 00 14 00 15 32 18 18 19 1D 1B 04 1C 00 1D 92 20 FB 21 B6 22 17 00 00 00 12 0E 34 60 C5 C1 C0

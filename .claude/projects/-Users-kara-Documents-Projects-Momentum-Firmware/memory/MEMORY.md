@@ -1,0 +1,6 @@
+- [User Profile](user_kara.md) — Flipper Zero firmware developer, Momentum fork maintainer
+- [Project Overview](project_momentum.md) — Momentum Firmware fork with external app migration and new SubGHz protocols
+- [External App Migration](project_external_apps.md) — Pattern for moving apps from internal flash to SD card FAPs
+- [New SubGHz Protocols](project_subghz_protocols.md) — 17+ automotive RF protocols added (VAG, KIA, PSA, Ford, Fiat, etc.)
+- [Protocol Testing Plan](project_testing_plan.md) — Pending: verify ARF protocol encode/decode, compare against ProtoPirate
+- [BLE App Ideas](project_bt_app_ideas.md) — Future BLE apps to build: sniffer, notify listener, fingerprinter, relay

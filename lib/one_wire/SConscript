@@ -7,11 +7,6 @@ env.Append(
     CPPPATH=[
         "#/lib/one_wire",
     ],
-    SDK_HEADERS=[
-        File("one_wire_host.h"),
-        File("one_wire_slave.h"),
-        File("maxim_crc.h"),
-    ],
 )
 
 libenv = env.Clone(FW_LIB_NAME="one_wire")

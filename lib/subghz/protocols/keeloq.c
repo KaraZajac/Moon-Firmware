@@ -59,6 +59,44 @@ typedef enum {
 
 static uint8_t keeloq_counter_mode = 0;
 
+// Brands whose remotes use shifted key-extension {0x20, 0x40, 0x80, 0x10}
+// Physical button positions don't match raw function codes
+static const char* const keeloq_shifted_btn_brands[] = {
+    "Nissan",
+    "Suzuki",
+    "Pandora_SUZUKI",
+    "DoorHan",
+    "Pandora_DEA",
+    "Pandora_GIBIDI",
+    "Pandora_MCODE",
+    "Pandora_Unknown_1",
+    "Pandora_Unknown_2",
+    "Alligator_S-275",
+    "Pantera_XS/Jaguar",
+    "APS-1100_APS-2550",
+};
+
+// Map raw function codes to physical button positions 1-4 for shifted brands
+static uint8_t keeloq_btn_get_position(const char* mfname, uint8_t btn_code) {
+    for(size_t i = 0; i < COUNT_OF(keeloq_shifted_btn_brands); i++) {
+        if(strcmp(mfname, keeloq_shifted_btn_brands[i]) == 0) {
+            switch(btn_code) {
+            case 0x2:
+                return 1;
+            case 0x4:
+                return 2;
+            case 0x8:
+                return 3;
+            case 0x1:
+                return 4;
+            default:
+                return 0;
+            }
+        }
+    }
+    return 0;
+}
+
 const SubGhzProtocolDecoder subghz_protocol_keeloq_decoder = {
     .alloc = subghz_protocol_decoder_keeloq_alloc,
     .free = subghz_protocol_decoder_keeloq_free,
@@ -1695,21 +1733,43 @@ void subghz_protocol_decoder_keeloq_get_string(void* context, FuriString* output
         subghz_block_generic_global.cnt_is_available = true;
         subghz_block_generic_global.cnt_length_bit = 16;
         subghz_block_generic_global.current_cnt = instance->generic.cnt;
-        furi_string_cat_printf(
-            output,
-            "%s %dbit\r\n"
-            "Key:%08lX%08lX\r\n"
-            "Fix:0x%08lX    Cnt:%04lX\r\n"
-            "Hop:0x%08lX    Btn:%01X\r\n"
-            "MF:%s",
-            instance->generic.protocol_name,
-            instance->generic.data_count_bit,
-            code_found_hi,
-            code_found_lo,
-            code_found_reverse_hi,
-            instance->generic.cnt,
-            hopdecrypt,
-            instance->generic.btn,
-            instance->manufacture_name);
+        uint8_t btn_pos =
+            keeloq_btn_get_position(instance->manufacture_name, instance->generic.btn);
+        if(btn_pos > 0) {
+            furi_string_cat_printf(
+                output,
+                "%s %dbit\r\n"
+                "Key:%08lX%08lX\r\n"
+                "Fix:0x%08lX    Cnt:%04lX\r\n"
+                "Hop:0x%08lX  Btn:%lX(B%lu)\r\n"
+                "MF:%s",
+                instance->generic.protocol_name,
+                instance->generic.data_count_bit,
+                code_found_hi,
+                code_found_lo,
+                code_found_reverse_hi,
+                instance->generic.cnt,
+                hopdecrypt,
+                (uint32_t)instance->generic.btn,
+                (uint32_t)btn_pos,
+                instance->manufacture_name);
+        } else {
+            furi_string_cat_printf(
+                output,
+                "%s %dbit\r\n"
+                "Key:%08lX%08lX\r\n"
+                "Fix:0x%08lX    Cnt:%04lX\r\n"
+                "Hop:0x%08lX    Btn:%01X\r\n"
+                "MF:%s",
+                instance->generic.protocol_name,
+                instance->generic.data_count_bit,
+                code_found_hi,
+                code_found_lo,
+                code_found_reverse_hi,
+                instance->generic.cnt,
+                hopdecrypt,
+                instance->generic.btn,
+                instance->manufacture_name);
+        }
     }
 }

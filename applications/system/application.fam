@@ -6,6 +6,7 @@ App(
         "updater_app",
         "js_app",
         "findmy_startup",
+        "subghz_load_extended_settings",
         # "archive",
     ],
 )

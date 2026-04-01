@@ -7,11 +7,6 @@ env.Append(
     CPPPATH=[
         "#/lib/ibutton",
     ],
-    SDK_HEADERS=[
-        File("ibutton_key.h"),
-        File("ibutton_worker.h"),
-        File("ibutton_protocols.h"),
-    ],
 )
 
 libenv = env.Clone(FW_LIB_NAME="ibutton")

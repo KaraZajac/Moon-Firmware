@@ -1,6 +1,6 @@
 #include "../js_modules.h"
 
-/* 
+/*
  * A list of app's private functions and objects to expose for plugins.
  * It is used to generate a table of symbols for import resolver to use.
  * TBD: automatically generate this table from app's header files
@@ -21,4 +21,48 @@ static constexpr auto app_api_table = sort(create_array_t<sym_entry>(
          size_t buf_size,
          mjs_val_t* source,
          size_t n_c_vals,
-         ...))));
+         ...)),
+    /* MJS API functions for plugins */
+    API_METHOD(mjs_apply, mjs_err_t, (struct mjs*, mjs_val_t*, mjs_val_t, mjs_val_t, int, mjs_val_t*)),
+    API_METHOD(mjs_arg, mjs_val_t, (struct mjs*, int)),
+    API_METHOD(mjs_array_buf_get_ptr, char*, (struct mjs*, mjs_val_t, size_t*)),
+    API_METHOD(mjs_array_get, mjs_val_t, (struct mjs*, mjs_val_t, unsigned long)),
+    API_METHOD(mjs_array_length, unsigned long, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_array_push, mjs_err_t, (struct mjs*, mjs_val_t, mjs_val_t)),
+    API_METHOD(mjs_dataview_get_buf, mjs_val_t, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_del, int, (struct mjs*, mjs_val_t, const char*, size_t)),
+    API_METHOD(mjs_disown, int, (struct mjs*, mjs_val_t*)),
+    API_METHOD(mjs_get, mjs_val_t, (struct mjs*, mjs_val_t, const char*, size_t)),
+    API_METHOD(mjs_get_bool, int, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_get_cstring, const char*, (struct mjs*, mjs_val_t*)),
+    API_METHOD(mjs_get_double, double, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_get_int, int, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_get_ptr, void*, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_get_string, const char*, (struct mjs*, mjs_val_t*, size_t*)),
+    API_METHOD(mjs_get_this, mjs_val_t, (struct mjs*)),
+    API_METHOD(mjs_is_array, int, (mjs_val_t)),
+    API_METHOD(mjs_is_array_buf, int, (mjs_val_t)),
+    API_METHOD(mjs_is_boolean, int, (mjs_val_t)),
+    API_METHOD(mjs_is_data_view, int, (mjs_val_t)),
+    API_METHOD(mjs_is_foreign, int, (mjs_val_t)),
+    API_METHOD(mjs_is_number, int, (mjs_val_t)),
+    API_METHOD(mjs_is_object, int, (mjs_val_t)),
+    API_METHOD(mjs_is_string, int, (mjs_val_t)),
+    API_METHOD(mjs_is_typed_array, int, (mjs_val_t)),
+    API_METHOD(mjs_is_undefined, int, (mjs_val_t)),
+    API_METHOD(mjs_mk_array, mjs_val_t, (struct mjs*)),
+    API_METHOD(mjs_mk_array_buf, mjs_val_t, (struct mjs*, char*, size_t)),
+    API_METHOD(mjs_mk_boolean, mjs_val_t, (struct mjs*, int)),
+    API_METHOD(mjs_mk_foreign, mjs_val_t, (struct mjs*, void*)),
+    API_METHOD(mjs_mk_number, mjs_val_t, (struct mjs*, double)),
+    API_METHOD(mjs_mk_object, mjs_val_t, (struct mjs*)),
+    API_METHOD(mjs_mk_string, mjs_val_t, (struct mjs*, const char*, size_t, int)),
+    API_METHOD(mjs_mk_undefined, mjs_val_t, ()),
+    API_METHOD(mjs_nargs, int, (struct mjs*)),
+    API_METHOD(mjs_next, mjs_val_t, (struct mjs*, mjs_val_t, mjs_val_t*)),
+    API_METHOD(mjs_own, void, (struct mjs*, mjs_val_t*)),
+    API_METHOD(mjs_prepend_errorf, mjs_err_t, (struct mjs*, mjs_err_t, const char*, ...)),
+    API_METHOD(mjs_return, void, (struct mjs*, mjs_val_t)),
+    API_METHOD(mjs_set, mjs_err_t, (struct mjs*, mjs_val_t, const char*, size_t, mjs_val_t)),
+    API_METHOD(mjs_strerror, const char*, (struct mjs*, enum mjs_err)),
+    API_METHOD(mjs_typeof, const char*, (mjs_val_t))));

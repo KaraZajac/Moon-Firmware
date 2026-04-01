@@ -9,9 +9,12 @@ App(
     order=40,
     sources=["*.c", "!infrared_cli.c"],
     resources="resources",
-    fap_libs=["assets", "infrared"],
+    fap_libs=["assets"],
     fap_icon="icon.png",
     fap_category="Infrared",
+    fap_private_libs=[
+        Lib(name="infrared"),
+    ],
 )
 
 App(

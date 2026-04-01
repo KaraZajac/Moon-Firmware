@@ -185,12 +185,12 @@ static DialogMessageButton about_screen_fw_version(DialogsApp* dialogs, DialogMe
             api_minor,
             c2_ver ? c2_ver->StackTypeString : "<none>",
             version_get_target(ver));
-        if(!strcmp(version_get_version(ver), "mntm-dev") &&
+        if(!strcmp(version_get_version(ver), "bm-dev") &&
            strcmp(version_get_gitbranch(ver), "dev")) {
             // Not a tag but not dev branch, show custom branch
             furi_string_cat(buffer, version_get_gitbranch(ver));
         } else {
-            furi_string_cat(buffer, "momentum-fw.dev");
+            furi_string_cat(buffer, "BM-FRM-01");
         }
     }
 

@@ -26,11 +26,22 @@ typedef enum {
     GapEventTypeUpdateMTU,
     GapEventTypeBeaconStart,
     GapEventTypeBeaconStop,
+    GapEventTypeScanResult,
+    GapEventTypeScanComplete,
 } GapEventType;
+
+typedef struct {
+    uint8_t address_type;
+    uint8_t address[GAP_MAC_ADDR_SIZE];
+    int8_t rssi;
+    uint8_t data_len;
+    const uint8_t* data;
+} GapScanResultData;
 
 typedef union {
     uint32_t pin_code;
     uint16_t max_packet_size;
+    GapScanResultData scan_result;
 } GapEventData;
 
 typedef struct {
@@ -47,7 +58,15 @@ typedef enum {
     GapStateAdvFast,
     GapStateAdvLowPower,
     GapStateConnected,
+    GapStateScanning,
 } GapState;
+
+typedef struct {
+    uint16_t interval;   // Scan interval (N * 0.625 ms)
+    uint16_t window;     // Scan window (N * 0.625 ms)
+    bool active;         // Active scan (sends SCAN_REQ)
+    uint32_t timeout_ms; // 0 = scan until stopped
+} GapScanParams;
 
 typedef enum {
     GapPairingNone,
@@ -104,9 +123,50 @@ void gap_stop_advertising(void);
 
 GapState gap_get_state(void);
 
+/** Get the current connection handle (valid when state == GapStateConnected)
+ *
+ * @return connection handle, or 0xFFFF if not connected
+ */
+uint16_t gap_get_connection_handle(void);
+
 void gap_thread_stop(void);
 
 void gap_emit_ble_beacon_status_event(bool active);
+
+/** Start BLE scanning (Central mode)
+ *
+ * @param params  scan parameters
+ * @return        true on success
+ */
+typedef void (*GapScanCallback)(GapScanResultData* result, void* context);
+
+/** Set callback for scan results (independent of main GAP event callback)
+ *
+ * @param callback  scan result callback, or NULL to clear
+ * @param context   user context
+ */
+void gap_set_scan_callback(GapScanCallback callback, void* context);
+
+bool gap_start_scanning(const GapScanParams* params);
+
+/** Stop BLE scanning
+ */
+void gap_stop_scanning(void);
+
+/** Connect to a BLE device (Central mode)
+ *
+ * @param address_type  peer address type (0=public, 1=random)
+ * @param address       6-byte peer address
+ * @return              true on success
+ */
+bool gap_connect(uint8_t address_type, const uint8_t* address);
+
+/** Disconnect from a specific connection
+ *
+ * @param connection_handle  the connection handle
+ * @return                   true on success
+ */
+bool gap_disconnect(uint16_t connection_handle);
 
 #ifdef __cplusplus
 }

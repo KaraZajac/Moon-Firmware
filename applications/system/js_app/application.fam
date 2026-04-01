@@ -20,6 +20,12 @@ App(
         "modules/js_flipper.c",
         "modules/js_tests.c",
     ],
+    fap_private_libs=[
+        Lib(
+            name="mjs",
+            cflags=["-Wno-redundant-decls", "-Wno-unused-function"],
+        ),
+    ],
 )
 
 App(
@@ -259,6 +265,7 @@ App(
     entry_point="js_infrared_ep",
     requires=["js_app"],
     sources=["modules/js_infrared/*.c"],
+    fap_libs=["infrared"],
 )
 
 App(

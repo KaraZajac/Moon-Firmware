@@ -66,8 +66,8 @@ def get_details(event, args):
     data["branch_name"] = re.sub("refs/\w+/", "", ref)
     data["branch_name_urlencoded"] = urllib.parse.quote_plus(data["branch_name"])
     data["suffix"] = (
-        "mntm-"
-        + data["branch_name"].removeprefix("mntm-").replace("/", "-")
+        "bm-"
+        + data["branch_name"].removeprefix("bm-").replace("/", "-")
         + "-"
         + data["commit_sha"]
     )

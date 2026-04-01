@@ -77,7 +77,9 @@ static bool furi_hal_bt_radio_stack_is_supported(const BleGlueC2Info* info) {
             furi_hal_bt.stack = FuriHalBtStackLight;
             supported = true;
         }
-    } else if(info->StackType == INFO_STACK_TYPE_BLE_FULL) {
+    } else if(
+        info->StackType == INFO_STACK_TYPE_BLE_FULL ||
+        info->StackType == INFO_STACK_TYPE_BLE_FULL_EXT_ADV) {
         if(info->VersionMajor >= FURI_HAL_BT_STACK_VERSION_MAJOR &&
            info->VersionMinor >= FURI_HAL_BT_STACK_VERSION_MINOR) {
             furi_hal_bt.stack = FuriHalBtStackFull;
@@ -265,6 +267,36 @@ void furi_hal_bt_stop_advertising(void) {
             furi_delay_tick(1);
         }
     }
+}
+
+void furi_hal_bt_set_scan_callback(GapScanCallback callback, void* context) {
+    gap_set_scan_callback(callback, context);
+}
+
+bool furi_hal_bt_start_scanning(const GapScanParams* params) {
+    furi_check(params);
+    if(furi_hal_bt.stack != FuriHalBtStackFull) {
+        FURI_LOG_E(TAG, "Scanning requires BLE Full stack");
+        return false;
+    }
+    return gap_start_scanning(params);
+}
+
+void furi_hal_bt_stop_scanning(void) {
+    gap_stop_scanning();
+}
+
+bool furi_hal_bt_connect(uint8_t address_type, const uint8_t* address) {
+    furi_check(address);
+    if(furi_hal_bt.stack != FuriHalBtStackFull) {
+        FURI_LOG_E(TAG, "Central mode requires BLE Full stack");
+        return false;
+    }
+    return gap_connect(address_type, address);
+}
+
+bool furi_hal_bt_disconnect(uint16_t connection_handle) {
+    return gap_disconnect(connection_handle);
 }
 
 void furi_hal_bt_update_battery_level(uint8_t battery_level) {

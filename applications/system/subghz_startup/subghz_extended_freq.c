@@ -2,7 +2,6 @@
 #include <furi_hal.h>
 #include <furi_hal_subghz_i.h>
 #include <toolbox/run_parallel.h>
-#include <subghz/subghz_last_settings.h>
 #include <flipper_format/flipper_format_i.h>
 
 #define TAG "SubGhzExtendedFreq"

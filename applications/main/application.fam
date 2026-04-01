@@ -23,6 +23,5 @@ App(
     apptype=FlipperAppType.METAPACKAGE,
     provides=[
         "cli",
-        "subghz_load_extended_settings",
     ],
 )

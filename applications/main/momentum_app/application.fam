@@ -1,6 +1,6 @@
 App(
     appid="momentum_app",
-    name="Momentum",
+    name="Bloodmoon",
     apptype=FlipperAppType.MENUEXTERNAL,
     entry_point="momentum_app",
     stack_size=2 * 1024,

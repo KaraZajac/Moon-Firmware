@@ -49,8 +49,8 @@ static void menu_process_ok(Menu* menu);
 static void menu_get_name(MenuItem* item, FuriString* name, bool shorter) {
     furi_string_set(name, item->label);
     if(shorter) {
-        if(!furi_string_cmp(name, "Momentum")) {
-            furi_string_set(name, "MNTM");
+        if(!furi_string_cmp(name, "Bloodmoon")) {
+            furi_string_set(name, "BM");
             return;
         } else if(!furi_string_cmp(name, "125 kHz RFID")) {
             furi_string_set(name, "RFID");

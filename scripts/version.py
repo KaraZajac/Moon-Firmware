@@ -37,11 +37,11 @@ class GitVersion:
         branch = (
             os.environ.get("WORKFLOW_BRANCH_OR_TAG", None)
             or tag
-            or self._exec_git("rev-parse --abbrev-ref HEAD").removeprefix("mntm-")
+            or self._exec_git("rev-parse --abbrev-ref HEAD").removeprefix("bm-")
             or "unknown"
         )
 
-        version = tag or "mntm-dev"
+        version = tag or "bm-dev"
 
         if "SOURCE_DATE_EPOCH" in os.environ:
             commit_date = datetime.utcfromtimestamp(
@@ -84,7 +84,7 @@ class GitVersion:
         if len(origins) == 1:
             return origins
         else:
-            return set(["https://github.com/Next-Flip/Momentum-Firmware"])
+            return set(["https://github.com/KaraZajac/Flipper-Bloodmoon"])
 
     def _exec_git(self, args):
         cmd = ["git"]

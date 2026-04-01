@@ -4,16 +4,6 @@ env.Append(
     CPPPATH=[
         "#/lib/mjs",
     ],
-    SDK_HEADERS=[
-        File("mjs_core_public.h"),
-        File("mjs_exec_public.h"),
-        File("mjs_object_public.h"),
-        File("mjs_string_public.h"),
-        File("mjs_array_public.h"),
-        File("mjs_primitive_public.h"),
-        File("mjs_util_public.h"),
-        File("mjs_array_buf_public.h"),
-    ],
 )
 
 libenv = env.Clone(FW_LIB_NAME="mjs")

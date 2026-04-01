@@ -249,6 +249,16 @@ void furi_hal_subghz_stop_async_tx(void);
 
 // External CC1101 Ebytes power amplifier control is now enabled by default
 
+/** Check if extended range is enabled
+ * @return true if extended range is enabled
+ */
+bool furi_hal_subghz_get_extended_range(void);
+
+/** Check if region bypass is enabled
+ * @return true if bypass region is enabled
+ */
+bool furi_hal_subghz_get_bypass_region(void);
+
 #ifdef __cplusplus
 }
 #endif

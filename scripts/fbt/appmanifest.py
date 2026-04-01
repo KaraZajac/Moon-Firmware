@@ -159,7 +159,7 @@ class AppManager:
                     f"App {kw.get('appid')} cannot have fal_embedded set"
                 )
 
-        if apptype in AppBuildset.DIST_APP_TYPES:
+        if apptype in AppBuildset.EXTERNAL_APP_TYPES_MAP:
             # For distributing .fap's resources, there's "fap_file_assets"
             for app_property in ():
                 if kw.get(app_property):
@@ -249,7 +249,6 @@ class AppBuildset:
         FlipperAppType.SERVICE,
         FlipperAppType.SYSTEM,
         FlipperAppType.APP,
-        FlipperAppType.DEBUG,
         FlipperAppType.ARCHIVE,
         FlipperAppType.STARTUP,
     )

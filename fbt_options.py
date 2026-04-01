@@ -4,7 +4,7 @@ import os
 
 # For more details on these options, run 'fbt -h'
 
-FIRMWARE_ORIGIN = "Momentum"
+FIRMWARE_ORIGIN = "Bloodmoon"
 
 # Default hardware target
 TARGET_HW = 7
@@ -30,16 +30,16 @@ if not os.environ.get("DIST_SUFFIX"):
         )
 
     try:
-        # For tags, dist name is just the tag name: mntm-(ver)
+        # For tags, dist name is just the tag name: bm-(ver)
         DIST_SUFFIX = git("describe", "--tags", "--abbrev=0", "--exact-match")
     except Exception:
-        # If not a tag, dist name is: mntm-(branch)-(commmit)
-        branch_name = git("rev-parse", "--abbrev-ref", "HEAD").removeprefix("mntm-")
+        # If not a tag, dist name is: bm-(branch)-(commmit)
+        branch_name = git("rev-parse", "--abbrev-ref", "HEAD").removeprefix("bm-")
         commit_sha = git("rev-parse", "HEAD")[:8]
-        DIST_SUFFIX = f"mntm-{branch_name}-{commit_sha}"
+        DIST_SUFFIX = f"bm-{branch_name}-{commit_sha}"
     # Dist name is only for naming of output files
     DIST_SUFFIX = DIST_SUFFIX.replace("/", "-")
-    # Instead, FW version uses tag name (mntm-xxx), or "mntm-dev" if not a tag (see scripts/version.py)
+    # Instead, FW version uses tag name (bm-xxx), or "bm-dev" if not a tag (see scripts/version.py)
     # You can get commit and branch info in firmware with appropriate version_get_*() calls
 
 # Skip external apps by default
@@ -57,9 +57,8 @@ COPRO_CUBE_VERSION = "1.20.0"
 COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
 # Default radio stack
-COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_light_fw.bin"
-# Firmware also supports "ble_full", but it might not fit into debug builds
-COPRO_STACK_TYPE = "ble_light"
+COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_extended_fw.bin"
+COPRO_STACK_TYPE = "ble_full"
 
 # Leave 0 to let scripts automatically calculate it
 COPRO_STACK_ADDR = "0x0"

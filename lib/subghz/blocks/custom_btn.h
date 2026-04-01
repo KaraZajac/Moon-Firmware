@@ -25,6 +25,16 @@ void subghz_custom_btns_reset(void);
 
 bool subghz_custom_btn_is_allowed(void);
 
+void subghz_custom_btn_set_long(bool v);
+bool subghz_custom_btn_get_long(void);
+
+void subghz_custom_btn_set_pages(bool enabled);
+bool subghz_custom_btn_has_pages(void);
+void subghz_custom_btn_set_page(uint8_t page);
+uint8_t subghz_custom_btn_get_page(void);
+void subghz_custom_btn_set_max_pages(uint8_t n);
+uint8_t subghz_custom_btn_get_max_pages(void);
+
 #ifdef __cplusplus
 }
 #endif

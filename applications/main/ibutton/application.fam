@@ -10,6 +10,10 @@ App(
     fap_libs=["assets"],
     fap_icon="icon.png",
     fap_category="iButton",
+    fap_private_libs=[
+        Lib(name="ibutton"),
+        Lib(name="one_wire"),
+    ],
 )
 
 App(
@@ -19,4 +23,5 @@ App(
     entry_point="cli_ikey_ep",
     requires=["cli"],
     sources=["ibutton_cli.c"],
+    fap_libs=["ibutton", "one_wire"],
 )
