@@ -222,6 +222,7 @@ static const char* subghz_protocol_kia_v3_v4_get_name_button(uint8_t btn) {
 void* subghz_protocol_encoder_kia_v3_v4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderKiaV3V4* instance = malloc(sizeof(SubGhzProtocolEncoderKiaV3V4));
+    furi_check(instance);
 
     instance->base.protocol = &subghz_protocol_kia_v3_v4;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -233,6 +234,7 @@ void* subghz_protocol_encoder_kia_v3_v4_alloc(SubGhzEnvironment* environment) {
 
     instance->encoder.size_upload = 600;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.repeat = 10;
     instance->encoder.front = 0;
     instance->encoder.is_running = false;
@@ -612,6 +614,7 @@ LevelDuration subghz_protocol_encoder_kia_v3_v4_yield(void* context) {
 void* subghz_protocol_decoder_kia_v3_v4_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderKiaV3V4* instance = malloc(sizeof(SubGhzProtocolDecoderKiaV3V4));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v3_v4;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->version = 0;

@@ -180,6 +180,7 @@ static void subghz_protocol_star_line_check_remote_controller(
 
 void* subghz_protocol_encoder_star_line_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolEncoderStarLine* instance = malloc(sizeof(SubGhzProtocolEncoderStarLine));
+    furi_check(instance);
 
     instance->base.protocol = &subghz_protocol_star_line;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -190,6 +191,7 @@ void* subghz_protocol_encoder_star_line_alloc(SubGhzEnvironment* environment) {
     instance->encoder.repeat = 40;
     instance->encoder.size_upload = 256;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
 
     return instance;
@@ -565,6 +567,7 @@ LevelDuration subghz_protocol_encoder_star_line_yield(void* context) {
 
 void* subghz_protocol_decoder_star_line_alloc(SubGhzEnvironment* environment) {
     SubGhzProtocolDecoderStarLine* instance = malloc(sizeof(SubGhzProtocolDecoderStarLine));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_star_line;
     instance->generic.protocol_name = instance->base.protocol->name;
 

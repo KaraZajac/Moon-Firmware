@@ -438,6 +438,7 @@ const SubGhzProtocol subghz_protocol_vag = {
 void* subghz_protocol_decoder_vag_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderVAG* instance = malloc(sizeof(SubGhzProtocolDecoderVAG));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_vag;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->decrypted = false;
@@ -1302,10 +1303,12 @@ void* subghz_protocol_encoder_vag_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
 
     SubGhzProtocolEncoderVAG* instance = malloc(sizeof(SubGhzProtocolEncoderVAG));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_vag;
     instance->generic.protocol_name = instance->base.protocol->name;
 
     instance->upload = malloc(VAG_ENCODER_UPLOAD_MAX_SIZE * sizeof(LevelDuration));
+    furi_check(instance->upload);
     instance->size_upload = 0;
     instance->repeat = 1;  
     instance->front = 0;

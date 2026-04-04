@@ -186,10 +186,12 @@ const SubGhzProtocol subghz_protocol_kia_v5 = {
 void* subghz_protocol_encoder_kia_v5_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderKiaV5* instance = malloc(sizeof(SubGhzProtocolEncoderKiaV5));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v5;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.size_upload = 400;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.repeat = 10;
     instance->encoder.is_running = false;
     return instance;
@@ -438,6 +440,7 @@ static void kia_v5_add_bit(SubGhzProtocolDecoderKiaV5* instance, bool bit) {
 void* subghz_protocol_decoder_kia_v5_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderKiaV5* instance = malloc(sizeof(SubGhzProtocolDecoderKiaV5));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v5;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;

@@ -104,6 +104,7 @@ void* subghz_protocol_encoder_mitsubishi_v0_alloc(SubGhzEnvironment* environment
     // Preamble + Sync + (12 bytes * 8 bits * 2 elements) + Gap
     instance->upload_capacity = (MITSUBISHI_V0_PREAMBLE_COUNT * 2) + 20 + (MITSUBISHI_V0_BIT_COUNT * 2) + 2;
     instance->encoder.upload = calloc(instance->upload_capacity, sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
 
     return instance;
 }

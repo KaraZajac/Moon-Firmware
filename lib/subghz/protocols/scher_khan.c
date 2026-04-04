@@ -268,6 +268,7 @@ const SubGhzProtocol subghz_protocol_scher_khan = {
 void* subghz_protocol_encoder_scher_khan_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderScherKhan* instance = malloc(sizeof(SubGhzProtocolEncoderScherKhan));
+    furi_check(instance);
 
     instance->base.protocol = &subghz_protocol_scher_khan;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -275,6 +276,7 @@ void* subghz_protocol_encoder_scher_khan_alloc(SubGhzEnvironment* environment) {
     instance->encoder.repeat = 7;
     instance->encoder.size_upload = 256;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     instance->encoder.front = 0;
 
@@ -634,6 +636,7 @@ LevelDuration subghz_protocol_encoder_scher_khan_yield(void* context) {
 void* subghz_protocol_decoder_scher_khan_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderScherKhan* instance = malloc(sizeof(SubGhzProtocolDecoderScherKhan));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_scher_khan;
     instance->generic.protocol_name = instance->base.protocol->name;
 

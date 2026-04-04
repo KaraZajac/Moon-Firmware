@@ -275,6 +275,7 @@ static void kia_v6_encrypt_payload(
 void* subghz_protocol_decoder_kia_v6_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderKiaV6* instance = malloc(sizeof(SubGhzProtocolDecoderKiaV6));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v6;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;

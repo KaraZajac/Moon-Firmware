@@ -145,13 +145,15 @@ static void subghz_protocol_encoder_kia_v2_get_upload(SubGhzProtocolEncoderKiaV2
 void* subghz_protocol_encoder_kia_v2_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderKiaV2* instance = malloc(sizeof(SubGhzProtocolEncoderKiaV2));
-    
+    furi_check(instance);
+
     instance->base.protocol = &subghz_protocol_kia_v2;
     instance->generic.protocol_name = instance->base.protocol->name;
     
     instance->encoder.repeat = 10;
     instance->encoder.size_upload = 1300;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     instance->encoder.front = 0;
     
@@ -269,6 +271,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_kia_v2_deserialize(void* context, F
 void* subghz_protocol_decoder_kia_v2_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderKiaV2* instance = malloc(sizeof(SubGhzProtocolDecoderKiaV2));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v2;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;

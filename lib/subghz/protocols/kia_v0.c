@@ -122,10 +122,12 @@ static bool kia_verify_crc(uint64_t data) {
 void* subghz_protocol_encoder_kia_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderKIA* instance = malloc(sizeof(SubGhzProtocolEncoderKIA));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.size_upload = 848;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.repeat = 1;
     instance->encoder.is_running = false;
 
@@ -376,6 +378,7 @@ uint8_t subghz_protocol_encoder_kia_get_button(void* context) {
 void* subghz_protocol_decoder_kia_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderKIA* instance = malloc(sizeof(SubGhzProtocolDecoderKIA));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_kia_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
 

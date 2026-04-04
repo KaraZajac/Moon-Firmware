@@ -263,6 +263,7 @@ static bool subaru_process_data(SubGhzProtocolDecoderSubaru* instance) {
 void* subghz_protocol_decoder_subaru_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderSubaru* instance = malloc(sizeof(SubGhzProtocolDecoderSubaru));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_subaru;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
@@ -489,13 +490,15 @@ void subghz_protocol_decoder_subaru_get_string(void* context, FuriString* output
 void* subghz_protocol_encoder_subaru_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderSubaru* instance = malloc(sizeof(SubGhzProtocolEncoderSubaru));
-    
+    furi_check(instance);
+
     instance->base.protocol = &subghz_protocol_subaru;
     instance->generic.protocol_name = instance->base.protocol->name;
     
     instance->encoder.repeat = 10;
     instance->encoder.size_upload = 2048;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     instance->encoder.front = 0;
     

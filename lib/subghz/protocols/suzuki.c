@@ -131,6 +131,7 @@ void *subghz_protocol_decoder_suzuki_alloc(SubGhzEnvironment *environment)
 {
     UNUSED(environment);
     SubGhzProtocolDecoderSuzuki *instance = malloc(sizeof(SubGhzProtocolDecoderSuzuki));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_suzuki;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
@@ -361,6 +362,7 @@ void *subghz_protocol_encoder_suzuki_alloc(SubGhzEnvironment *environment)
 {
     UNUSED(environment);
     SubGhzProtocolEncoderSuzuki *instance = malloc(sizeof(SubGhzProtocolEncoderSuzuki));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_suzuki;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.upload = NULL;
@@ -442,6 +444,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_suzuki_deserialize(void *context, F
             free(instance->encoder.upload);
         }
         instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+        furi_check(instance->encoder.upload);
 
         size_t index = 0;
 

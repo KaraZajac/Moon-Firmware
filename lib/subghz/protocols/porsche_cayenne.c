@@ -185,6 +185,7 @@ void* subghz_protocol_decoder_porsche_cayenne_alloc(SubGhzEnvironment* environme
     UNUSED(environment);
     SubGhzProtocolDecoderPorscheCayenne* instance =
         malloc(sizeof(SubGhzProtocolDecoderPorscheCayenne));
+    furi_check(instance);
     instance->base.protocol    = &subghz_protocol_porsche_cayenne;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
@@ -530,12 +531,14 @@ void* subghz_protocol_encoder_porsche_cayenne_alloc(SubGhzEnvironment* environme
     UNUSED(environment);
     SubGhzProtocolEncoderPorscheCayenne* instance =
         malloc(sizeof(SubGhzProtocolEncoderPorscheCayenne));
+    furi_check(instance);
 
     instance->base.protocol          = &subghz_protocol_porsche_cayenne;
     instance->generic.protocol_name  = instance->base.protocol->name;
     instance->encoder.repeat         = 1; // 4-frame burst is sent once per trigger
     instance->encoder.size_upload    = PC_UPLOAD_SIZE;
     instance->encoder.upload         = malloc(PC_UPLOAD_SIZE * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running     = false;
     instance->encoder.front          = 0;
 

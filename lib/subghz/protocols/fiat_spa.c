@@ -89,6 +89,7 @@ const SubGhzProtocol subghz_protocol_fiat_spa = {
 void* subghz_protocol_decoder_fiat_spa_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderFiatSpa* instance = malloc(sizeof(SubGhzProtocolDecoderFiatSpa));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_fiat_spa;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
@@ -370,11 +371,13 @@ void subghz_protocol_decoder_fiat_spa_get_string(void* context, FuriString* outp
 void* subghz_protocol_encoder_fiat_spa_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderFiatSpa* instance = malloc(sizeof(SubGhzProtocolEncoderFiatSpa));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_fiat_spa;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.repeat = 3;
     instance->encoder.size_upload = FIAT_SPA_UPLOAD_MAX;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     instance->encoder.front = 0;
     instance->hop = 0;

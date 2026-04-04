@@ -691,6 +691,7 @@ void subghz_cli_command_tx_from_file(PipeSide* pipe, FuriString* args, void* con
                    custom_preset_data,
                    custom_preset_data_size)) {
                 printf("subghz tx_from_file: \033[0;31mCustom_preset_data read error\033[0m\r\n");
+                free(custom_preset_data);
                 break;
             }
             subghz_devices_load_preset(

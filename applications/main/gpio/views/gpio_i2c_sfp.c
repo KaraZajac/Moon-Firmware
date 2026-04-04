@@ -136,11 +136,11 @@ void gpio_i2c_sfp_update_state(GpioI2CSfp* instance, I2CSfpState* st) {
         GpioI2CSfpModel * model,
         {
             // Insert values into model...
-            strcpy(model->vendor, st->vendor);
-            strcpy(model->pn, st->pn);
-            strcpy(model->sn, st->sn);
-            strcpy(model->rev, st->rev);
-            strcpy(model->connector, st->connector);
+            strlcpy(model->vendor, st->vendor, sizeof(model->vendor));
+            strlcpy(model->pn, st->pn, sizeof(model->pn));
+            strlcpy(model->sn, st->sn, sizeof(model->sn));
+            strlcpy(model->rev, st->rev, sizeof(model->rev));
+            strlcpy(model->connector, st->connector, sizeof(model->connector));
             model->wavelength = st->wavelength;
             model->sm_reach = st->sm_reach;
             model->mm_reach_om3 = st->mm_reach_om3;

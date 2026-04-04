@@ -324,7 +324,7 @@ void gpio_i2c_sfp_run_once(I2CSfpState* i2c_sfp_state) {
         str_part(sfp_data, i2c_sfp_state->dc, 84, 6);
 
         //Look up connector in table and copy to struct.
-        strcpy(i2c_sfp_state->connector, sfp_connector_map[sfp_data[2]]);
+        strlcpy(i2c_sfp_state->connector, sfp_connector_map[sfp_data[2]], sizeof(i2c_sfp_state->connector));
         i2c_sfp_state->bitrate = sfp_data[12] * 100;
         i2c_sfp_state->wavelength = sfp_data[60] * 256 + sfp_data[61];
         i2c_sfp_state->sm_reach = sfp_data[14];

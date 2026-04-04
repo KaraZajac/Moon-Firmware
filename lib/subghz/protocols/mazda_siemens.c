@@ -229,6 +229,7 @@ void* subghz_protocol_encoder_mazda_siemens_alloc(SubGhzEnvironment* environment
     UNUSED(environment);
     SubGhzProtocolEncoderMazdaSiemens* instance =
         malloc(sizeof(SubGhzProtocolEncoderMazdaSiemens));
+    furi_check(instance);
 
     instance->base.protocol = &subghz_protocol_mazda_siemens;
     instance->generic.protocol_name = instance->base.protocol->name;
@@ -236,6 +237,7 @@ void* subghz_protocol_encoder_mazda_siemens_alloc(SubGhzEnvironment* environment
     instance->encoder.repeat = MAZDA_TX_REPEATS;
     instance->encoder.size_upload = MAZDA_UPLOAD_MAX;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     return instance;
 }
@@ -383,6 +385,7 @@ void* subghz_protocol_decoder_mazda_siemens_alloc(SubGhzEnvironment* environment
     UNUSED(environment);
     SubGhzProtocolDecoderMazdaSiemens* instance =
         malloc(sizeof(SubGhzProtocolDecoderMazdaSiemens));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_mazda_siemens;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;

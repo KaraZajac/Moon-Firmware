@@ -41,10 +41,10 @@ static void gpio_i2c_scanner_draw_callback(Canvas* canvas, void* _model) {
 
     char temp_str2[6];
     if(model->items > 0) {
-        snprintf(temp_str, 25, "Addr: ");
+        strlcpy(temp_str, "Addr: ", sizeof(temp_str));
         for(int i = 0; i < model->items; i++) {
-            snprintf(temp_str2, 6, "0x%x ", model->responding_address[i]);
-            strcat(temp_str, temp_str2);
+            snprintf(temp_str2, sizeof(temp_str2), "0x%x ", model->responding_address[i]);
+            strlcat(temp_str, temp_str2, sizeof(temp_str));
 
             if(i == 1 || model->items == 1) { //Draw a maximum of two addresses in the first line
                 canvas_draw_str_aligned(canvas, 127, 24, AlignRight, AlignBottom, temp_str);

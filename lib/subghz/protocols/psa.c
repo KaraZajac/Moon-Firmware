@@ -1664,6 +1664,7 @@ void* subghz_protocol_encoder_psa_alloc(SubGhzEnvironment* environment) {
         instance->generic.protocol_name = instance->base.protocol->name;
         instance->encoder.size_upload = 600;
         instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+        furi_check(instance->encoder.upload);
         instance->encoder.repeat = 10;
         instance->encoder.front = 0;
         instance->encoder.is_running = false;

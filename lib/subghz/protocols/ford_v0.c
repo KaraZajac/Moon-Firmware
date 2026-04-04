@@ -326,13 +326,15 @@ static void encode_ford_v0(uint64_t original_key1, uint32_t serial, uint8_t butt
 void* subghz_protocol_encoder_ford_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderFordV0* instance = malloc(sizeof(SubGhzProtocolEncoderFordV0));
-    
+    furi_check(instance);
+
     instance->base.protocol = &subghz_protocol_ford_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
     
     instance->encoder.repeat = 3;
     instance->encoder.size_upload = 1024;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     instance->encoder.front = 0;
     
@@ -426,8 +428,10 @@ SubGhzProtocolStatus subghz_protocol_encoder_ford_v0_deserialize(void* context, 
     if(ret != SubGhzProtocolStatusOk) return ret;
 
     uint32_t chk_old = 0, crc_old = 0;
-    flipper_format_read_uint32(flipper_format, "CheckSum", &chk_old, 1);
-    flipper_format_read_uint32(flipper_format, "CRC", &crc_old, 1);
+    if(!flipper_format_read_uint32(flipper_format, "CheckSum", &chk_old, 1) ||
+       !flipper_format_read_uint32(flipper_format, "CRC", &crc_old, 1)) {
+        return SubGhzProtocolStatusErrorParserOthers;
+    }
     uint16_t key2_old = ((chk_old & 0xFF) << 8) | (crc_old & 0xFF);
 
     decode_ford_v0(instance->generic.data, key2_old, &instance->serial, &instance->button, &instance->count);
@@ -467,6 +471,7 @@ SubGhzProtocolStatus subghz_protocol_encoder_ford_v0_deserialize(void* context, 
 void* subghz_protocol_decoder_ford_v0_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderFordV0* instance = malloc(sizeof(SubGhzProtocolDecoderFordV0));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_ford_v0;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->crc_valid = false;

@@ -259,11 +259,13 @@ static bool cfm_try_decrypt(
 void* subghz_protocol_encoder_sheriff_cfm_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolEncoderSheriffCfm* instance = malloc(sizeof(SubGhzProtocolEncoderSheriffCfm));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_sheriff_cfm;
     instance->generic.protocol_name = instance->base.protocol->name;
     instance->encoder.repeat = 3;
     instance->encoder.size_upload = 256;
     instance->encoder.upload = malloc(instance->encoder.size_upload * sizeof(LevelDuration));
+    furi_check(instance->encoder.upload);
     instance->encoder.is_running = false;
     instance->encoder.front = 0;
     instance->model = SheriffCfmModelZX750;
@@ -428,6 +430,7 @@ LevelDuration subghz_protocol_encoder_sheriff_cfm_yield(void* context) {
 void* subghz_protocol_decoder_sheriff_cfm_alloc(SubGhzEnvironment* environment) {
     UNUSED(environment);
     SubGhzProtocolDecoderSheriffCfm* instance = malloc(sizeof(SubGhzProtocolDecoderSheriffCfm));
+    furi_check(instance);
     instance->base.protocol = &subghz_protocol_sheriff_cfm;
     instance->generic.protocol_name = instance->base.protocol->name;
     return instance;
