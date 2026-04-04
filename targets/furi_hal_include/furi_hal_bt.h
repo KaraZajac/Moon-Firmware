@@ -242,44 +242,7 @@ uint32_t furi_hal_bt_get_transmitted_packets(void);
 bool furi_hal_bt_ensure_c2_mode(BleGlueC2Mode mode);
 
 /**
- * BLE Central Mode / Scanning API (requires BLE Full or Full Extended stack)
- */
-
-/** Set scan result callback
- *
- * @param callback  callback function, or NULL to clear
- * @param context   user context
- */
-void furi_hal_bt_set_scan_callback(GapScanCallback callback, void* context);
-
-/** Start BLE scanning
- *
- * @param params  scan parameters (interval, window, active/passive, timeout)
- * @return        true on success
- */
-bool furi_hal_bt_start_scanning(const GapScanParams* params);
-
-/** Stop BLE scanning
- */
-void furi_hal_bt_stop_scanning(void);
-
-/** Connect to a BLE device
- *
- * @param address_type  0=public, 1=random
- * @param address       6-byte MAC address
- * @return              true on success
- */
-bool furi_hal_bt_connect(uint8_t address_type, const uint8_t* address);
-
-/** Disconnect from a BLE device
- *
- * @param connection_handle  connection handle from connect event
- * @return                   true on success
- */
-bool furi_hal_bt_disconnect(uint16_t connection_handle);
-
-/**
- * Extra BLE beacon API
+ * Extra BLE beacon API 
  */
 
 /** Set extra beacon data. Can be called in any state

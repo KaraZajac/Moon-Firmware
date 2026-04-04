@@ -42,18 +42,12 @@ typedef struct {
     bool enable_adv;
     bool is_secure;
     uint8_t negotiation_round;
-    GapScanParams scan_params;
-    FuriTimer* scan_timer;
-    GapScanCallback scan_cb;
-    void* scan_cb_context;
 } Gap;
 
 typedef enum {
     GapCommandAdvFast,
     GapCommandAdvLowPower,
     GapCommandAdvStop,
-    GapCommandScanStart,
-    GapCommandScanStop,
     GapCommandKillThread,
 } GapCommand;
 
@@ -61,9 +55,6 @@ static Gap* gap = NULL;
 
 static void gap_advertise_start(GapState new_state);
 static int32_t gap_app(void* context);
-static void gap_scan_timer_callback(void* context);
-static void gap_scan_start_internal(void);
-static void gap_scan_stop_internal(void);
 
 static void gap_verify_connection_parameters(Gap* gap) {
     furi_check(gap);
@@ -186,37 +177,6 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 FURI_LOG_I(TAG, "PHY Params TX = %d, RX = %d ", tx_phy, rx_phy);
             }
             break;
-
-        case HCI_LE_ADVERTISING_REPORT_SUBEVT_CODE: {
-            hci_le_advertising_report_event_rp0* report_evt =
-                (hci_le_advertising_report_event_rp0*)meta_evt->data;
-            // Process each advertising report in the event
-            uint8_t* data_ptr = (uint8_t*)report_evt->Advertising_Report;
-            for(uint8_t i = 0; i < report_evt->Num_Reports; i++) {
-                Advertising_Report_t* report = (Advertising_Report_t*)data_ptr;
-                GapScanResultData scan_result = {
-                    .address_type = report->Address_Type,
-                    .rssi = (int8_t)data_ptr[report->Length_Data +
-                                              sizeof(Advertising_Report_t)],
-                    .data_len = report->Length_Data,
-                    .data = report->Data,
-                };
-                memcpy(scan_result.address, report->Address, GAP_MAC_ADDR_SIZE);
-                // Call dedicated scan callback if set
-                if(gap->scan_cb) {
-                    gap->scan_cb(&scan_result, gap->scan_cb_context);
-                }
-                // Also dispatch via main GAP event callback
-                GapEvent event = {
-                    .type = GapEventTypeScanResult,
-                    .data.scan_result = scan_result,
-                };
-                gap->on_event_cb(event, gap->context);
-                // Advance to next report: struct + data + rssi byte
-                data_ptr += sizeof(Advertising_Report_t) + report->Length_Data + 1;
-            }
-            break;
-        }
 
         case HCI_LE_CONNECTION_COMPLETE_SUBEVT_CODE: {
             hci_le_connection_complete_event_rp0* event =
@@ -397,7 +357,7 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
     // Skip fist symbol AD_TYPE_COMPLETE_LOCAL_NAME
     char* name = gap->service.adv_name + 1;
     aci_gap_init(
-        GAP_PERIPHERAL_ROLE | GAP_CENTRAL_ROLE,
+        GAP_PERIPHERAL_ROLE,
         0,
         strlen(name),
         &gap->service.gap_svc_handle,
@@ -585,8 +545,6 @@ bool gap_init(
     gap->config = config;
     // Create advertising timer
     gap->advertise_timer = furi_timer_alloc(gap_advetise_timer_callback, FuriTimerTypeOnce, NULL);
-    // Create scan timeout timer
-    gap->scan_timer = furi_timer_alloc(gap_scan_timer_callback, FuriTimerTypeOnce, NULL);
     // Initialization of GATT & GAP layer
     gap->service.adv_name = config->adv_name;
     gap_init_svc(gap, root_keys);
@@ -647,13 +605,6 @@ GapState gap_get_state(void) {
     return state;
 }
 
-uint16_t gap_get_connection_handle(void) {
-    if(gap && gap->state == GapStateConnected) {
-        return gap->service.connection_handle;
-    }
-    return 0xFFFF;
-}
-
 void gap_thread_stop(void) {
     if(gap) {
         furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
@@ -671,8 +622,6 @@ void gap_thread_stop(void) {
         gap->command_queue = NULL;
         furi_timer_free(gap->advertise_timer);
         gap->advertise_timer = NULL;
-        furi_timer_free(gap->scan_timer);
-        gap->scan_timer = NULL;
 
         ble_event_dispatcher_reset();
         free(gap);
@@ -699,128 +648,11 @@ static int32_t gap_app(void* context) {
             gap_advertise_start(GapStateAdvLowPower);
         } else if(command == GapCommandAdvStop) {
             gap_advertise_stop();
-        } else if(command == GapCommandScanStart) {
-            gap_scan_start_internal();
-        } else if(command == GapCommandScanStop) {
-            gap_scan_stop_internal();
         }
         furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
     }
 
     return 0;
-}
-
-static void gap_scan_timer_callback(void* context) {
-    UNUSED(context);
-    GapCommand command = GapCommandScanStop;
-    furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
-}
-
-static void gap_scan_start_internal(void) {
-    tBleStatus status;
-    uint8_t scan_type = gap->scan_params.active ? 0x01 : 0x00;
-    status = hci_le_set_scan_parameters(
-        scan_type,
-        gap->scan_params.interval,
-        gap->scan_params.window,
-        CFG_IDENTITY_ADDRESS,
-        0x00); // Accept all
-    if(status) {
-        FURI_LOG_E(TAG, "Set scan parameters failed: %d", status);
-        return;
-    }
-    status = hci_le_set_scan_enable(0x01, 0x00); // Enable, no filter duplicates
-    if(status) {
-        FURI_LOG_E(TAG, "Set scan enable failed: %d", status);
-        return;
-    }
-    gap->state = GapStateScanning;
-    FURI_LOG_I(TAG, "Scanning started");
-    if(gap->scan_params.timeout_ms > 0) {
-        furi_timer_start(gap->scan_timer, gap->scan_params.timeout_ms);
-    }
-}
-
-static void gap_scan_stop_internal(void) {
-    if(gap->state != GapStateScanning) return;
-    furi_timer_stop(gap->scan_timer);
-    tBleStatus status = hci_le_set_scan_enable(0x00, 0x00);
-    if(status) {
-        FURI_LOG_E(TAG, "Set scan disable failed: %d", status);
-    }
-    gap->state = GapStateIdle;
-    FURI_LOG_I(TAG, "Scanning stopped");
-    GapEvent event = {.type = GapEventTypeScanComplete};
-    gap->on_event_cb(event, gap->context);
-}
-
-void gap_set_scan_callback(GapScanCallback callback, void* context) {
-    furi_check(gap);
-    gap->scan_cb = callback;
-    gap->scan_cb_context = context;
-}
-
-bool gap_start_scanning(const GapScanParams* params) {
-    furi_check(gap);
-    furi_check(params);
-    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
-    bool result = false;
-    if(gap->state == GapStateIdle) {
-        gap->scan_params = *params;
-        GapCommand command = GapCommandScanStart;
-        furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
-        result = true;
-    }
-    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
-    return result;
-}
-
-void gap_stop_scanning(void) {
-    furi_check(gap);
-    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
-    if(gap->state == GapStateScanning) {
-        GapCommand command = GapCommandScanStop;
-        furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
-    }
-    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
-}
-
-bool gap_connect(uint8_t address_type, const uint8_t* address) {
-    furi_check(gap);
-    furi_check(address);
-    // Stop scanning first if active
-    if(gap->state == GapStateScanning) {
-        hci_le_set_scan_enable(0x00, 0x00);
-        furi_timer_stop(gap->scan_timer);
-    }
-    tBleStatus status = hci_le_create_connection(
-        0x60,            // scan interval 60ms
-        0x30,            // scan window 30ms
-        0x00,            // use peer address (no whitelist)
-        address_type,
-        address,
-        CFG_IDENTITY_ADDRESS,
-        0x18,            // conn interval min 30ms
-        0x30,            // conn interval max 60ms
-        0x00,            // slave latency
-        0x01F4,          // supervision timeout 5s
-        0x0000,          // min CE length
-        0xFFFF);         // max CE length
-    if(status) {
-        FURI_LOG_E(TAG, "Create connection failed: %d", status);
-        return false;
-    }
-    FURI_LOG_I(TAG, "Connecting to device...");
-    return true;
-}
-
-bool gap_disconnect(uint16_t connection_handle) {
-    tBleStatus status = aci_gap_terminate(connection_handle, 0x13);
-    if(status) {
-        FURI_LOG_E(TAG, "Disconnect failed: %d", status);
-        return false;
-    }
-    return true;
 }
 
 void gap_emit_ble_beacon_status_event(bool active) {
