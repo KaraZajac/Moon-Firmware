@@ -2,16 +2,14 @@
 
 <p align="center">
   <strong>BM-FRM-01</strong><br>
-  A Flipper Zero firmware fork built on <a href="https://github.com/Next-Flip/Momentum-Firmware">Momentum</a>, focused on automotive RF research and extended BLE capabilities.
+  A Flipper Zero firmware fork built on <a href="https://github.com/Next-Flip/Momentum-Firmware">Momentum</a>, focused on automotive RF research and flash optimization.
 </p>
 
 ---
 
 ## What This Is
 
-Bloodmoon is a research-oriented Flipper Zero firmware that expands SubGHz automotive protocol coverage far beyond stock. It ports protocol implementations from [D4C1-Labs/Flipper-ARF](https://github.com/D4C1-Labs/Flipper-ARF) and reorganizes internal flash to support the BLE Full Extended advertising stack.
-
-> **Warning:** This firmware modifies STM32WB55 Option Bytes (SFSA) and the BLE radio stack partition. Flashing with `flash_usb_full` carries brick risk if interrupted. Use SWD (`./fbt flash`) for safer flashing when changing OB or radio stack configurations.
+Bloodmoon is a research-oriented Flipper Zero firmware that expands SubGHz automotive protocol coverage far beyond stock. It ports protocol implementations from [D4C1-Labs/Flipper-ARF](https://github.com/D4C1-Labs/Flipper-ARF) and restructures internal flash usage to maximize available storage for apps and assets.
 
 ---
 
@@ -48,23 +46,9 @@ Shifted button position display for 12+ brands. Full encode+decode for 44 gate/a
 
 ---
 
-## BLE Extended Stack
+## Flash Optimization
 
-Bloodmoon reconfigures the STM32WB55 flash layout to run the full BLE extended advertising stack (`stm32wb5x_BLE_Stack_full_extended_fw.bin`):
-
-| Parameter | Stock | Bloodmoon |
-|---|---|---|
-| SFSA | 0xD7 | 0xC5 |
-| CPU1 (App) | 860 KB | 788 KB |
-| CPU2 (BLE) | 164 KB | 236 KB |
-
-This enables extended advertising, multiple advertising sets, and larger payloads at the cost of 72 KB of application flash.
-
----
-
-## Memory Optimization
-
-Core apps moved to external storage (SD card FAPs) to offset the reduced internal flash:
+Core apps moved to external storage (SD card FAPs) to free internal flash for firmware features and future expansion:
 
 - iButton
 - Infrared
@@ -72,17 +56,21 @@ Core apps moved to external storage (SD card FAPs) to offset the reduced interna
 - Sub-GHz
 - JS Runner
 
+The updater has also been hardened with CRC peripheral reset before FUS calls (ST errata workaround) and FUS error state recovery for more reliable radio stack operations.
+
 ---
 
 ## Build & Flash
 
-### Standard (USB DFU)
+### Update Package (recommended)
 
 ```bash
-./fbt flash_usb_full
+./fbt updater_package
 ```
 
-### SWD (ST-Link) — recommended for OB changes
+Copy the output directory (`dist/f7-C/f7-update-*`) to the Flipper's SD card under `update/` and apply from Settings > Update.
+
+### SWD (ST-Link)
 
 ```bash
 ./fbt flash
@@ -94,11 +82,13 @@ Connect ST-Link to Flipper GPIO: SWCLK (pin 10), SWDIO (pin 12), GND (pin 18). P
 
 ## Recovery
 
-If the device is unresponsive after a failed flash (no LED, no USB enumeration), the STM32 ROM bootloader cannot be reached via the normal button combo. Recovery requires SWD:
+If the device boot-loops or shows "secure enclave damaged" after a failed update:
 
-1. Connect an ST-Link to the GPIO header
-2. Power the Flipper via USB
-3. Flash from a clean Momentum checkout: `./fbt flash`
+1. Enter DFU mode: hold **LEFT + BACK** while plugging in USB
+2. Flash a clean Momentum firmware via [qFlipper](https://flipperzero.one/update)
+3. Once Momentum boots, re-apply Bloodmoon via the SD card update package
+
+For hard bricks (no USB enumeration), recovery requires SWD with an ST-Link.
 
 ---
 

@@ -144,6 +144,7 @@ vars.AddVariables(
         default="ble_light",
         allowed_values=[
             "ble_full",
+            "ble_full_ext_adv",
             "ble_light",
             "ble_basic",
         ],

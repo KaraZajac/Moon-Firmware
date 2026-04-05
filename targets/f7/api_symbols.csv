@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.1,,
+Version,+,87.2,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -256,6 +256,7 @@ Header,+,lib/toolbox/varint.h,,
 Header,+,lib/toolbox/version.h,,
 Header,+,targets/f7/ble_glue/furi_ble/event_dispatcher.h,,
 Header,+,targets/f7/ble_glue/furi_ble/gatt.h,,
+Header,+,targets/f7/ble_glue/furi_ble/gatt_client.h,,
 Header,+,targets/f7/ble_glue/furi_ble/profile_interface.h,,
 Header,+,targets/f7/ble_glue/profiles/serial_profile.h,,
 Header,+,targets/f7/ble_glue/services/battery_service.h,,
@@ -742,6 +743,13 @@ Function,+,ble_event_dispatcher_unregister_svc_handler,void,GapSvcEventHandler*
 Function,+,ble_gatt_characteristic_delete,void,"uint16_t, BleGattCharacteristicInstance*"
 Function,+,ble_gatt_characteristic_init,void,"uint16_t, const BleGattCharacteristicParams*, BleGattCharacteristicInstance*"
 Function,+,ble_gatt_characteristic_update,_Bool,"uint16_t, BleGattCharacteristicInstance*, const void*"
+Function,+,ble_gatt_client_discover_characteristics,_Bool,"uint16_t, const BleGattService*"
+Function,+,ble_gatt_client_discover_services,_Bool,uint16_t
+Function,+,ble_gatt_client_init,void,
+Function,+,ble_gatt_client_read,_Bool,"uint16_t, uint16_t"
+Function,+,ble_gatt_client_set_callback,void,"BleGattClientCallback, void*"
+Function,+,ble_gatt_client_subscribe_notifications,_Bool,"uint16_t, uint16_t, _Bool"
+Function,+,ble_gatt_client_write,_Bool,"uint16_t, uint16_t, const uint8_t*, uint16_t"
 Function,+,ble_gatt_service_add,_Bool,"uint8_t, const Service_UUID_t*, uint8_t, uint8_t, uint16_t*"
 Function,+,ble_gatt_service_delete,_Bool,uint16_t
 Function,+,ble_glue_force_c2_mode,BleGlueCommandResult,BleGlueC2Mode
@@ -1364,6 +1372,8 @@ Function,+,furi_hal_adc_release,void,FuriHalAdcHandle*
 Function,+,furi_hal_bt_change_app,FuriHalBleProfileBase*,"const FuriHalBleProfileTemplate*, FuriHalBleProfileParams, const GapRootSecurityKeys*, GapEventCallback, void*"
 Function,+,furi_hal_bt_check_profile_type,_Bool,"FuriHalBleProfileBase*, const FuriHalBleProfileTemplate*"
 Function,+,furi_hal_bt_clear_white_list,_Bool,
+Function,+,furi_hal_bt_connect,_Bool,"uint8_t, const uint8_t*"
+Function,+,furi_hal_bt_disconnect,_Bool,uint16_t
 Function,+,furi_hal_bt_dump_state,void,FuriString*
 Function,+,furi_hal_bt_ensure_c2_mode,_Bool,BleGlueC2Mode
 Function,+,furi_hal_bt_extra_beacon_get_config,const GapExtraBeaconConfig*,
@@ -1387,16 +1397,19 @@ Function,+,furi_hal_bt_nvm_sram_sem_acquire,void,
 Function,+,furi_hal_bt_nvm_sram_sem_release,void,
 Function,+,furi_hal_bt_reinit,void,
 Function,+,furi_hal_bt_set_key_storage_change_callback,void,"BleGlueKeyStorageChangedCallback, void*"
+Function,+,furi_hal_bt_set_scan_callback,void,"GapScanCallback, void*"
 Function,+,furi_hal_bt_start_advertising,void,
 Function,+,furi_hal_bt_start_app,FuriHalBleProfileBase*,"const FuriHalBleProfileTemplate*, FuriHalBleProfileParams, const GapRootSecurityKeys*, GapEventCallback, void*"
 Function,+,furi_hal_bt_start_packet_rx,void,"uint8_t, uint8_t"
 Function,+,furi_hal_bt_start_packet_tx,void,"uint8_t, uint8_t, uint8_t"
 Function,+,furi_hal_bt_start_radio_stack,_Bool,
 Function,+,furi_hal_bt_start_rx,void,uint8_t
+Function,+,furi_hal_bt_start_scanning,_Bool,const GapScanParams*
 Function,+,furi_hal_bt_start_tone_tx,void,"uint8_t, uint8_t"
 Function,+,furi_hal_bt_stop_advertising,void,
 Function,+,furi_hal_bt_stop_packet_test,uint16_t,
 Function,+,furi_hal_bt_stop_rx,void,
+Function,+,furi_hal_bt_stop_scanning,void,
 Function,+,furi_hal_bt_stop_tone_tx,void,
 Function,+,furi_hal_bt_unlock_core2,void,
 Function,+,furi_hal_bt_update_battery_level,void,uint8_t
@@ -2040,6 +2053,8 @@ Function,-,gamma,double,double
 Function,-,gamma_r,double,"double, int*"
 Function,-,gammaf,float,float
 Function,-,gammaf_r,float,"float, int*"
+Function,+,gap_connect,_Bool,"uint8_t, const uint8_t*"
+Function,+,gap_disconnect,_Bool,uint16_t
 Function,-,gap_emit_ble_beacon_status_event,void,_Bool
 Function,-,gap_extra_beacon_get_config,const GapExtraBeaconConfig*,
 Function,-,gap_extra_beacon_get_data,uint8_t,uint8_t*
@@ -2049,10 +2064,14 @@ Function,-,gap_extra_beacon_set_config,_Bool,const GapExtraBeaconConfig*
 Function,-,gap_extra_beacon_set_data,_Bool,"const uint8_t*, uint8_t"
 Function,-,gap_extra_beacon_start,_Bool,
 Function,-,gap_extra_beacon_stop,_Bool,
+Function,+,gap_get_connection_handle,uint16_t,
 Function,+,gap_get_state,GapState,
 Function,-,gap_init,_Bool,"GapConfig*, const GapRootSecurityKeys*, GapEventCallback, void*"
+Function,+,gap_set_scan_callback,void,"GapScanCallback, void*"
 Function,-,gap_start_advertising,void,
+Function,+,gap_start_scanning,_Bool,const GapScanParams*
 Function,-,gap_stop_advertising,void,
+Function,+,gap_stop_scanning,void,
 Function,-,gap_thread_stop,void,
 Function,-,getc,int,FILE*
 Function,-,getc_unlocked,int,FILE*

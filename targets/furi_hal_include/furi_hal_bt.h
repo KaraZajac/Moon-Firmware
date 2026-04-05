@@ -296,6 +296,42 @@ bool furi_hal_bt_extra_beacon_is_active(void);
  */
 const GapExtraBeaconConfig* furi_hal_bt_extra_beacon_get_config(void);
 
+/**
+ * BLE Scanning API — requires BLE Full stack
+ */
+
+/** Set scan result callback
+ *
+ * @param callback  GapScanCallback instance
+ * @param context   pointer to context
+ */
+void furi_hal_bt_set_scan_callback(GapScanCallback callback, void* context);
+
+/** Start BLE scanning
+ *
+ * @param params  scan parameters (interval, window, active, timeout)
+ * @return        true on success
+ */
+bool furi_hal_bt_start_scanning(const GapScanParams* params);
+
+/** Stop BLE scanning */
+void furi_hal_bt_stop_scanning(void);
+
+/** Initiate connection to a BLE device
+ *
+ * @param address_type  peer address type (0=public, 1=random)
+ * @param address       peer 6-byte MAC address
+ * @return              true on success
+ */
+bool furi_hal_bt_connect(uint8_t address_type, const uint8_t* address);
+
+/** Disconnect from a BLE device
+ *
+ * @param connection_handle  handle of the connection to terminate
+ * @return                   true on success
+ */
+bool furi_hal_bt_disconnect(uint16_t connection_handle);
+
 #ifdef __cplusplus
 }
 #endif

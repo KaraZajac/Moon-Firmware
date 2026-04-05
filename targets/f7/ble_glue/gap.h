@@ -47,6 +47,8 @@ typedef enum {
     GapStateAdvFast,
     GapStateAdvLowPower,
     GapStateConnected,
+    GapStateScanning,
+    GapStateConnecting,
 } GapState;
 
 typedef enum {
@@ -107,6 +109,39 @@ GapState gap_get_state(void);
 void gap_thread_stop(void);
 
 void gap_emit_ble_beacon_status_event(bool active);
+
+/*
+ * Scanning (observer role) — requires BLE Full stack
+ */
+
+typedef struct {
+    uint16_t interval;
+    uint16_t window;
+    bool active;
+    uint16_t timeout_ms;
+} GapScanParams;
+
+typedef struct {
+    uint8_t address[GAP_MAC_ADDR_SIZE];
+    uint8_t address_type;
+    int8_t rssi;
+    const uint8_t* data;
+    uint8_t data_len;
+} GapScanResultData;
+
+typedef void (*GapScanCallback)(GapScanResultData* result, void* context);
+
+bool gap_start_scanning(const GapScanParams* params);
+void gap_stop_scanning(void);
+void gap_set_scan_callback(GapScanCallback callback, void* context);
+
+/*
+ * Central role connections — requires BLE Full stack
+ */
+
+bool gap_connect(uint8_t address_type, const uint8_t* address);
+bool gap_disconnect(uint16_t connection_handle);
+uint16_t gap_get_connection_handle(void);
 
 #ifdef __cplusplus
 }

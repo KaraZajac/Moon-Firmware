@@ -41,7 +41,10 @@ typedef struct {
     FuriMessageQueue* command_queue;
     bool enable_adv;
     bool is_secure;
+    bool is_central;
     uint8_t negotiation_round;
+    GapScanCallback scan_callback;
+    void* scan_context;
 } Gap;
 
 typedef enum {
@@ -134,14 +137,15 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             gap->service.connection_handle = 0;
             gap->state = GapStateIdle;
             FURI_LOG_I(
-                TAG, "Disconnect from client. Reason: %02X", disconnection_complete_event->Reason);
+                TAG, "Disconnect. Reason: %02X", disconnection_complete_event->Reason);
         }
+        bool was_central = gap->is_central;
         gap->is_secure = false;
+        gap->is_central = false;
         gap->negotiation_round = 0;
-        // Enterprise sleep
         furi_delay_us(666 + 666);
-        if(gap->enable_adv) {
-            // Restart advertising
+        /* Only restart advertising if we were acting as peripheral */
+        if(!was_central && gap->enable_adv) {
             gap_advertise_start(GapStateAdvFast);
         }
         GapEvent event = {.type = GapEventTypeDisconnected};
@@ -181,21 +185,70 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         case HCI_LE_CONNECTION_COMPLETE_SUBEVT_CODE: {
             hci_le_connection_complete_event_rp0* event =
                 (hci_le_connection_complete_event_rp0*)meta_evt->data;
+            bool is_central = (gap->state == GapStateConnecting ||
+                               gap->state == GapStateScanning);
+
+            FURI_LOG_I(
+                TAG,
+                "Connected: handle=0x%04X role=%s interval=%d",
+                event->Connection_Handle,
+                is_central ? "central" : "peripheral",
+                event->Conn_Interval);
+
             gap->connection_params.conn_interval = event->Conn_Interval;
             gap->connection_params.slave_latency = event->Conn_Latency;
             gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
 
-            // Stop advertising as connection completed
-            furi_timer_stop(gap->advertise_timer);
-
-            // Update connection status and handle
             gap->state = GapStateConnected;
             gap->service.connection_handle = event->Connection_Handle;
 
-            gap_verify_connection_parameters(gap);
-            if(gap->config->pairing_method != GapPairingNone) {
-                // Start pairing by sending security request
-                aci_gap_slave_security_req(event->Connection_Handle);
+            if(!is_central) {
+                /* Peripheral role: stop advertising timer */
+                furi_timer_stop(gap->advertise_timer);
+                gap_verify_connection_parameters(gap);
+                if(gap->config->pairing_method != GapPairingNone) {
+                    aci_gap_slave_security_req(event->Connection_Handle);
+                }
+            }
+        } break;
+
+        case HCI_LE_ADVERTISING_REPORT_SUBEVT_CODE: {
+            GapScanCallback callback = gap->scan_callback;
+            void* scan_ctx = gap->scan_context;
+            if(callback) {
+                /* Parse raw HCI buffer directly — the Advertising_Report_t
+                 * struct has a pointer field that doesn't match the wire
+                 * format (variable-length inline data), so we walk bytes. */
+                const uint8_t* raw = meta_evt->data;
+                uint8_t num_reports = raw[0];
+                const uint8_t* ptr = &raw[1];
+
+                furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+                for(uint8_t i = 0; i < num_reports; i++) {
+                    /* Per-report wire layout:
+                     * [0]    event_type
+                     * [1]    address_type
+                     * [2..7] address (6 bytes)
+                     * [8]    data_length (N)
+                     * [9..9+N-1] advertising data
+                     * [9+N]  RSSI (signed) */
+                    uint8_t addr_type = ptr[1];
+                    const uint8_t* address = &ptr[2];
+                    uint8_t data_len = ptr[8];
+                    const uint8_t* data = &ptr[9];
+                    int8_t rssi = (int8_t)ptr[9 + data_len];
+
+                    GapScanResultData result = {
+                        .address_type = addr_type,
+                        .rssi = rssi,
+                        .data = data,
+                        .data_len = data_len,
+                    };
+                    memcpy(result.address, address, GAP_MAC_ADDR_SIZE);
+                    callback(&result, scan_ctx);
+                    ptr += 10 + data_len;
+                }
+                furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
             }
         } break;
 
@@ -356,13 +409,38 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
     // Initialize GAP interface
     // Skip fist symbol AD_TYPE_COMPLETE_LOCAL_NAME
     char* name = gap->service.adv_name + 1;
-    aci_gap_init(
-        GAP_PERIPHERAL_ROLE,
+    uint8_t gap_role = GAP_PERIPHERAL_ROLE;
+    if(furi_hal_bt_get_radio_stack() == FuriHalBtStackFull) {
+        gap_role |= GAP_CENTRAL_ROLE;
+    }
+    status = aci_gap_init(
+        gap_role,
         0,
         strlen(name),
         &gap->service.gap_svc_handle,
         &gap->service.dev_name_char_handle,
         &gap->service.appearance_char_handle);
+    if(status) {
+        FURI_LOG_E(TAG, "aci_gap_init FAILED: 0x%02X (role=0x%02X)", status, gap_role);
+        if(gap_role != GAP_PERIPHERAL_ROLE) {
+            /* Fall back to peripheral-only so BLE still works */
+            gap_role = GAP_PERIPHERAL_ROLE;
+            status = aci_gap_init(
+                gap_role,
+                0,
+                strlen(name),
+                &gap->service.gap_svc_handle,
+                &gap->service.dev_name_char_handle,
+                &gap->service.appearance_char_handle);
+            FURI_LOG_I(TAG, "aci_gap_init peripheral-only fallback: 0x%02X", status);
+        }
+    } else {
+        FURI_LOG_I(
+            TAG,
+            "aci_gap_init OK role=0x%02X (%s)",
+            gap_role,
+            (gap_role & GAP_CENTRAL_ROLE) ? "peripheral+central" : "peripheral");
+    }
 
     // Set GAP characteristics
     status = aci_gatt_update_char_value(
@@ -659,4 +737,140 @@ void gap_emit_ble_beacon_status_event(bool active) {
     GapEvent event = {.type = active ? GapEventTypeBeaconStart : GapEventTypeBeaconStop};
     gap->on_event_cb(event, gap->context);
     FURI_LOG_I(TAG, "Beacon status event: %d", active);
+}
+
+/*
+ * Scanning (observer role)
+ */
+
+void gap_set_scan_callback(GapScanCallback callback, void* context) {
+    furi_check(gap);
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+    gap->scan_callback = callback;
+    gap->scan_context = context;
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+}
+
+bool gap_start_scanning(const GapScanParams* params) {
+    furi_check(gap);
+    furi_check(params);
+
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+
+    if(gap->state != GapStateIdle) {
+        FURI_LOG_E(TAG, "Cannot start scanning in state %d", gap->state);
+        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+        return false;
+    }
+
+    uint16_t interval = params->interval;
+    uint16_t window = params->window;
+    uint8_t scan_type = params->active ? 1 : 0;
+    uint8_t filter_dup = 0;
+
+    tBleStatus status = aci_gap_start_observation_proc(
+        interval, window, scan_type, 0x00 /* public addr */, filter_dup, 0x00 /* accept all */);
+
+    if(status == BLE_STATUS_SUCCESS) {
+        gap->state = GapStateScanning;
+        FURI_LOG_I(TAG, "Scanning started (interval=%d window=%d active=%d)",
+            interval, window, scan_type);
+    } else {
+        FURI_LOG_E(TAG, "Start scanning failed: 0x%02X", status);
+    }
+
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    return status == BLE_STATUS_SUCCESS;
+}
+
+void gap_stop_scanning(void) {
+    furi_check(gap);
+
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+
+    aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
+    if(gap->state == GapStateScanning) {
+        gap->state = GapStateIdle;
+    }
+    FURI_LOG_I(TAG, "Scanning stopped");
+
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+}
+
+/*
+ * Central role connections
+ */
+
+bool gap_connect(uint8_t address_type, const uint8_t* address) {
+    furi_check(gap);
+    furi_check(address);
+
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+
+    if(gap->state != GapStateIdle && gap->state != GapStateScanning) {
+        FURI_LOG_E(TAG, "Cannot connect in state %d", gap->state);
+        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+        return false;
+    }
+
+    /* Stop scanning before connecting */
+    if(gap->state == GapStateScanning) {
+        aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
+        gap->state = GapStateIdle;
+    }
+
+    tBleStatus status = aci_gap_create_connection(
+        0x0060, /* scan interval 60ms */
+        0x0030, /* scan window 30ms */
+        address_type,
+        address,
+        0x00, /* public own address */
+        0x0028, /* conn interval min 50ms */
+        0x0038, /* conn interval max 70ms */
+        0x0000, /* slave latency */
+        0x03E8, /* supervision timeout 10s */
+        0x0010, /* min CE length */
+        0x0020 /* max CE length */);
+
+    if(status == BLE_STATUS_SUCCESS) {
+        gap->state = GapStateConnecting;
+        gap->is_central = true;
+        FURI_LOG_I(
+            TAG,
+            "Connecting to %02X:%02X:%02X:%02X:%02X:%02X",
+            address[5], address[4], address[3], address[2], address[1], address[0]);
+    } else {
+        FURI_LOG_E(TAG, "Connection failed: 0x%02X", status);
+    }
+
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    return status == BLE_STATUS_SUCCESS;
+}
+
+bool gap_disconnect(uint16_t connection_handle) {
+    furi_check(gap);
+
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+
+    if(gap->state != GapStateConnected) {
+        FURI_LOG_E(TAG, "Cannot disconnect in state %d", gap->state);
+        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+        return false;
+    }
+
+    tBleStatus status = aci_gap_terminate(connection_handle, 0x13 /* remote user terminated */);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Disconnect failed: 0x%02X", status);
+    }
+
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    return status == BLE_STATUS_SUCCESS;
+}
+
+uint16_t gap_get_connection_handle(void) {
+    furi_check(gap);
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+    uint16_t handle = gap->service.connection_handle;
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    return handle;
 }

@@ -58,7 +58,8 @@ COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
 # Default radio stack
 COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_light_fw.bin"
-# Firmware also supports "ble_full", but it might not fit into debug builds
+# BLE central/scanning requires "ble_full" — flash full stack via
+# STM32CubeProgrammer before switching this (see ReadMe.md).
 COPRO_STACK_TYPE = "ble_light"
 
 # Leave 0 to let scripts automatically calculate it

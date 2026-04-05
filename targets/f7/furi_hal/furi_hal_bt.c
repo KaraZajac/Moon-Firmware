@@ -71,19 +71,34 @@ void furi_hal_bt_unlock_core2(void) {
 
 static bool furi_hal_bt_radio_stack_is_supported(const BleGlueC2Info* info) {
     bool supported = false;
+    FURI_LOG_I(
+        TAG,
+        "C2 radio stack: type=0x%02X version=%d.%d.%d",
+        info->StackType,
+        info->VersionMajor,
+        info->VersionMinor,
+        info->VersionSub);
     if(info->StackType == INFO_STACK_TYPE_BLE_LIGHT) {
+        FURI_LOG_W(TAG, "BLE Light stack detected — central/scanning will NOT work");
         if(info->VersionMajor >= FURI_HAL_BT_STACK_VERSION_MAJOR &&
            info->VersionMinor >= FURI_HAL_BT_STACK_VERSION_MINOR) {
             furi_hal_bt.stack = FuriHalBtStackLight;
             supported = true;
         }
-    } else if(info->StackType == INFO_STACK_TYPE_BLE_FULL) {
+    } else if(
+        info->StackType == INFO_STACK_TYPE_BLE_FULL ||
+        info->StackType == INFO_STACK_TYPE_BLE_FULL_EXT_ADV) {
+        FURI_LOG_I(
+            TAG,
+            "BLE %s stack detected — central/scanning supported",
+            info->StackType == INFO_STACK_TYPE_BLE_FULL_EXT_ADV ? "Full+ExtAdv" : "Full");
         if(info->VersionMajor >= FURI_HAL_BT_STACK_VERSION_MAJOR &&
            info->VersionMinor >= FURI_HAL_BT_STACK_VERSION_MINOR) {
             furi_hal_bt.stack = FuriHalBtStackFull;
             supported = true;
         }
     } else {
+        FURI_LOG_E(TAG, "Unknown radio stack type: 0x%02X", info->StackType);
         furi_hal_bt.stack = FuriHalBtStackUnknown;
     }
     return supported;
@@ -439,4 +454,40 @@ bool furi_hal_bt_extra_beacon_stop(void) {
 
 bool furi_hal_bt_extra_beacon_is_active(void) {
     return gap_extra_beacon_get_state() == GapExtraBeaconStateStarted;
+}
+
+/*
+ * BLE Scanning & Central Role
+ */
+
+void furi_hal_bt_set_scan_callback(GapScanCallback callback, void* context) {
+    gap_set_scan_callback(callback, context);
+}
+
+bool furi_hal_bt_start_scanning(const GapScanParams* params) {
+    if(furi_hal_bt.stack != FuriHalBtStackFull) {
+        FURI_LOG_E(
+            TAG,
+            "Scanning requires BLE Full stack (current stack: %d)",
+            furi_hal_bt.stack);
+        return false;
+    }
+    FURI_LOG_I(TAG, "Starting BLE scan (stack=%d)", furi_hal_bt.stack);
+    return gap_start_scanning(params);
+}
+
+void furi_hal_bt_stop_scanning(void) {
+    gap_stop_scanning();
+}
+
+bool furi_hal_bt_connect(uint8_t address_type, const uint8_t* address) {
+    if(furi_hal_bt.stack != FuriHalBtStackFull) {
+        FURI_LOG_E(TAG, "Connect requires BLE Full stack");
+        return false;
+    }
+    return gap_connect(address_type, address);
+}
+
+bool furi_hal_bt_disconnect(uint16_t connection_handle) {
+    return gap_disconnect(connection_handle);
 }

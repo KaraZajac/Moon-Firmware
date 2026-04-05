@@ -148,6 +148,13 @@ static bool update_task_write_stack(UpdateTask* update_task) {
 
         CHECK_RESULT(update_task_write_stack_data(update_task));
         update_task_set_progress(update_task, UpdateTaskStageRadioInstall, 10);
+
+        /* Reset hardware CRC peripheral before FUS call. FUS uses CRC
+         * internally but does NOT reset it — stale state from M4 code
+         * causes FUS_STATE_ERROR_IMG_CORRUPT (ST errata). */
+        CRC->CR |= CRC_CR_RESET;
+        __DSB();
+
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
         update_task_set_progress(update_task, UpdateTaskStageProgress, 80);
@@ -213,7 +220,13 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
             /* OK, we're in FUS mode. */
             FURI_LOG_W(TAG, "Waiting for FUS to settle");
             update_task_set_progress(update_task, UpdateTaskStageProgress, 30);
-            CHECK_RESULT(ble_glue_fus_wait_operation() == BleGlueCommandResultOK);
+            if(ble_glue_fus_wait_operation() != BleGlueCommandResultOK) {
+                /* FUS may have a lingering error from a previous failed operation.
+                 * Per ST docs, calling GetState again clears the error. */
+                FURI_LOG_W(TAG, "Clearing FUS error state");
+                ble_glue_fus_get_status();
+                CHECK_RESULT(ble_glue_fus_wait_operation() == BleGlueCommandResultOK);
+            }
             if(stack_version_match) {
                 /* We can't check StackType with FUS, but partial version matches */
                 if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update)) {
@@ -234,7 +247,12 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
                 }
             } else {
                 if(stack_missing) {
-                    /* Install stack. */
+                    /* Delete first to ensure SFSA is at maximum, even if no
+                     * stack is installed. Guarantees manifest->radio_address
+                     * is in non-secure writable flash. */
+                    FURI_LOG_W(TAG, "Ensuring clean state before install");
+                    ble_glue_fus_stack_delete();
+                    ble_glue_fus_wait_operation();
                     CHECK_RESULT(update_task_write_stack(update_task));
                 } else {
                     CHECK_RESULT(update_task_remove_stack(update_task));
