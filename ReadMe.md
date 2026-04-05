@@ -106,8 +106,6 @@ Built on [Momentum Firmware](https://github.com/Next-Flip/Momentum-Firmware), wh
 
 ---
 
-<sub>
+### Disclaimer
 
-**Disclaimer:** This firmware is provided as-is for educational and research purposes only. It is not affiliated with, endorsed by, or supported by Flipper Devices, the Momentum Firmware project, or any vehicle manufacturer. The authors assume no responsibility for any damage to hardware, loss of data, or legal consequences resulting from the use of this firmware. Users are solely responsible for ensuring their use complies with all applicable local, state, and federal laws. Unauthorized access to vehicle systems, interception of RF signals, or bypassing of security mechanisms may violate laws including but not limited to the Computer Fraud and Abuse Act (CFAA), the European Cybercrime Convention, and national telecommunications regulations. This software must not be used for unauthorized entry, theft, stalking, or any other illegal activity.
-
-</sub>
+*This firmware is provided as-is for educational and research purposes only. It is not affiliated with, endorsed by, or supported by Flipper Devices, the Momentum Firmware project, or any vehicle manufacturer. The authors assume no responsibility for any damage to hardware, loss of data, or legal consequences resulting from the use of this firmware. Users are solely responsible for ensuring their use complies with all applicable local, state, and federal laws. Unauthorized access to vehicle systems, interception of RF signals, or bypassing of security mechanisms may violate laws including but not limited to the Computer Fraud and Abuse Act (CFAA), the European Cybercrime Convention, and national telecommunications regulations. This software must not be used for unauthorized entry, theft, stalking, or any other illegal activity.*
