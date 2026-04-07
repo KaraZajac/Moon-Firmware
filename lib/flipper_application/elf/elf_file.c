@@ -1088,7 +1088,7 @@ static void elf_setup_xip(ELFFile* elf) {
 
     if(xip_total == 0) {
         FURI_LOG_D(TAG, "No XIP-eligible sections found");
-        elf->xip_region.active = false;
+        xip_region_release(&elf->xip_region);
         return;
     }
 
@@ -1098,7 +1098,7 @@ static void elf_setup_xip(ELFFile* elf) {
             TAG,
             "XIP sections too large (%zu bytes), falling back to RAM",
             xip_total);
-        elf->xip_region.active = false;
+        xip_region_release(&elf->xip_region);
         return;
     }
 
@@ -1112,7 +1112,7 @@ static void elf_setup_xip(ELFFile* elf) {
             uint32_t flash_addr = xip_region_alloc(&elf->xip_region, sec->size, 8);
             if(flash_addr == 0) {
                 FURI_LOG_E(TAG, "XIP alloc failed for '%s', falling back to RAM", itref->key);
-                elf->xip_region.active = false;
+                xip_region_release(&elf->xip_region);
                 ELFSectionDict_it_t it2;
                 for(ELFSectionDict_it(it2, elf->sections); !ELFSectionDict_end_p(it2);
                     ELFSectionDict_next(it2)) {
@@ -1842,7 +1842,9 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
                 }
                 cache_hdr.section_count = sec_idx;
 
-                xip_cache_commit_header(&elf->xip_region, &cache_hdr);
+                if(!xip_cache_commit_header(&elf->xip_region, &cache_hdr)) {
+                    FURI_LOG_E(TAG, "XIP cache header write failed — app will re-flash on next launch");
+                }
             }
         }
 
