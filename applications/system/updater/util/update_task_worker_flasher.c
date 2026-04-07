@@ -256,12 +256,11 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
                 }
             } else {
                 if(stack_missing) {
-                    /* Delete first to ensure SFSA is at maximum, even if no
-                     * stack is installed. Guarantees manifest->radio_address
-                     * is in non-secure writable flash. */
-                    FURI_LOG_W(TAG, "Ensuring clean state before install");
-                    ble_glue_fus_stack_delete();
-                    ble_glue_fus_wait_operation();
+                    /* Stack was already deleted in the previous reboot cycle.
+                     * SFSA is now at maximum — all flash pages are writable.
+                     * Just write and install. Do NOT call fus_stack_delete()
+                     * again — deleting an already-deleted stack can error or
+                     * reboot, causing an infinite boot loop. */
                     CHECK_RESULT(update_task_write_stack(update_task));
                 } else {
                     CHECK_RESULT(update_task_remove_stack(update_task));
