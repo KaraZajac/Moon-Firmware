@@ -182,6 +182,24 @@ void furi_hal_flash_batch_end(void);
  */
 bool furi_hal_flash_batch_is_active(void);
 
+/** Prevent flash operations while ISR-callable code executes from flash.
+ *
+ * Acquires Core2 mutex and tells BLE stack to defer flash writes.
+ * Use when DMA/timer ISR callbacks execute code from XIP flash —
+ * prevents Core2 flash operations from stalling instruction fetch.
+ *
+ * Safe to call if already protected (no-op).
+ * Must be paired with furi_hal_flash_unprotect_during_execution().
+ */
+void furi_hal_flash_protect_during_execution(void);
+
+/** Resume normal flash operations after ISR-critical section.
+ *
+ * Releases Core2 mutex and tells BLE stack to resume flash writes.
+ * Safe to call if not protected (no-op).
+ */
+void furi_hal_flash_unprotect_during_execution(void);
+
 #ifdef __cplusplus
 }
 #endif

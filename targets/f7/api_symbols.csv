@@ -1349,6 +1349,8 @@ Function,-,furi_hal_flash_ob_apply,void,
 Function,-,furi_hal_flash_ob_get_raw_ptr,const FuriHalFlashRawOptionByteData*,
 Function,-,furi_hal_flash_ob_set_word,_Bool,"size_t, const uint32_t"
 Function,-,furi_hal_flash_program_page,void,"const uint8_t, const uint8_t*, uint16_t"
+Function,+,furi_hal_flash_protect_during_execution,void,
+Function,+,furi_hal_flash_unprotect_during_execution,void,
 Function,+,furi_hal_flash_write_block,void,"size_t, const uint8_t*, size_t"
 Function,-,furi_hal_flash_write_dword,void,"size_t, uint64_t"
 Function,+,furi_hal_gpio_add_int_callback,void,"const GpioPin*, GpioExtiCallback, void*"

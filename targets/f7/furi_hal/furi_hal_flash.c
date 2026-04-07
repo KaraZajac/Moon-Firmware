@@ -302,6 +302,27 @@ bool furi_hal_flash_batch_is_active(void) {
     return furi_hal_flash_batch_active;
 }
 
+static volatile bool furi_hal_flash_protection_active = false;
+
+void furi_hal_flash_protect_during_execution(void) {
+    if(furi_hal_flash_protection_active) return; /* already protected */
+    furi_hal_bt_lock_core2();
+    if(furi_hal_bt_is_alive()) {
+        SHCI_C2_FLASH_EraseActivity(ERASE_ACTIVITY_ON);
+        furi_delay_us(5);
+    }
+    furi_hal_flash_protection_active = true;
+}
+
+void furi_hal_flash_unprotect_during_execution(void) {
+    if(!furi_hal_flash_protection_active) return;
+    furi_hal_flash_protection_active = false;
+    if(furi_hal_bt_is_alive()) {
+        SHCI_C2_FLASH_EraseActivity(ERASE_ACTIVITY_OFF);
+    }
+    furi_hal_bt_unlock_core2();
+}
+
 bool furi_hal_flash_wait_last_operation(uint32_t timeout) {
     uint32_t error = 0;
 

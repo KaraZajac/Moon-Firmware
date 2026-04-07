@@ -9,6 +9,8 @@
 #include <furi_hal_interrupt.h>
 #include <furi_hal_resources.h>
 #include <furi_hal_bus.h>
+#include <furi_hal_flash.h>
+#include <furi_hal_bt.h>
 
 #include <stm32wbxx_ll_dma.h>
 
@@ -536,6 +538,10 @@ void furi_hal_subghz_start_async_rx(FuriHalSubGhzCaptureCallback callback, void*
     furi_check(furi_hal_subghz.state == SubGhzStateIdle);
     furi_check(callback);
 
+    /* Prevent Core2 flash operations during RX capture. The timer ISR calls
+     * protocol decoder callbacks that may reside in XIP flash. */
+    furi_hal_flash_protect_during_execution();
+
     furi_hal_subghz.state = SubGhzStateAsyncRx;
 
     furi_hal_subghz_capture_callback = callback;
@@ -619,6 +625,9 @@ void furi_hal_subghz_stop_async_rx(void) {
     furi_hal_interrupt_set_isr(FuriHalInterruptIdTIM2, NULL, NULL);
 
     furi_hal_gpio_init(&gpio_cc1101_g0, GpioModeAnalog, GpioPullNo, GpioSpeedLow);
+
+    /* Resume Core2 flash operations now that RX ISR is stopped */
+    furi_hal_flash_unprotect_during_execution();
 }
 
 typedef enum {
@@ -770,6 +779,11 @@ bool furi_hal_subghz_start_async_tx(FuriHalSubGhzAsyncTxCallback callback, void*
 
     //If transmission is prohibited by regional settings
     if(furi_hal_subghz.regulation != SubGhzRegulationTxRx) return false;
+
+    /* Prevent Core2 flash operations during TX. The DMA ISR calls protocol
+     * encoder callbacks that may reside in XIP flash — a concurrent flash
+     * erase/write from Core2 would stall instruction fetch and cause BusFault. */
+    furi_hal_flash_protect_during_execution();
 
     furi_hal_subghz_async_tx.callback = callback;
     furi_hal_subghz_async_tx.callback_context = context;
@@ -932,4 +946,7 @@ void furi_hal_subghz_stop_async_tx(void) {
         (double)duty_cycle);
 
     furi_hal_subghz.state = SubGhzStateIdle;
+
+    /* Resume Core2 flash operations now that TX ISR is stopped */
+    furi_hal_flash_unprotect_during_execution();
 }

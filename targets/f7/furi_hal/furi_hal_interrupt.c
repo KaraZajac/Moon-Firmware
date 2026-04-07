@@ -313,7 +313,20 @@ void MemManage_Handler(void) {
     furi_crash("MemManage");
 }
 
-void BusFault_Handler(void) {
+__attribute__((naked)) void BusFault_Handler(void) {
+    /* Get the correct stack pointer (PSP if from thread, MSP if from handler) */
+    asm volatile(
+        "tst lr, #4      \n"
+        "ite eq           \n"
+        "mrseq r0, msp    \n"
+        "mrsne r0, psp    \n"
+        "b BusFault_Handler_Main \n"
+    );
+}
+
+void BusFault_Handler_Main(uint32_t* stack_frame) {
+    char tmp_str[12];
+
     furi_log_puts("\r\n" _FURI_LOG_CLR_E "Bus fault:\r\n");
     if(FURI_BIT(SCB->CFSR, SCB_CFSR_LSPERR_Pos)) {
         furi_log_puts(" - lazy stacking for exception entry\r\n");
@@ -336,23 +349,45 @@ void BusFault_Handler(void) {
     }
 
     if(FURI_BIT(SCB->CFSR, SCB_CFSR_IBUSERR_Pos)) {
-        furi_log_puts(" - instruction\r\n");
+        furi_log_puts(" - instruction bus error\r\n");
     }
 
     if(FURI_BIT(SCB->CFSR, SCB_CFSR_BFARVALID_Pos)) {
         uint32_t busfault_address = SCB->BFAR;
-        furi_log_puts(" -- at 0x");
-
-        char tmp_str[] = "0xFFFFFFFF";
+        furi_log_puts(" -- BFAR: 0x");
         itoa(busfault_address, tmp_str, 16);
         furi_log_puts(tmp_str);
-
         furi_log_puts("\r\n");
 
         if(busfault_address == (uint32_t)NULL) {
             furi_log_puts(" -- NULL pointer dereference\r\n");
         }
+
+        /* Check if address is in the XIP flash region */
+        if(busfault_address >= 0x0807E000 && busfault_address < 0x080C9000) {
+            furi_log_puts(" -- address is in XIP flash region\r\n");
+        }
     }
+
+    /* Log stacked PC — the instruction that was executing when the fault occurred */
+    if(stack_frame) {
+        uint32_t stacked_pc = stack_frame[6]; /* R0,R1,R2,R3,R12,LR,PC,xPSR */
+        furi_log_puts(" -- PC:   0x");
+        itoa(stacked_pc, tmp_str, 16);
+        furi_log_puts(tmp_str);
+        furi_log_puts("\r\n");
+
+        uint32_t stacked_lr = stack_frame[5];
+        furi_log_puts(" -- LR:   0x");
+        itoa(stacked_lr, tmp_str, 16);
+        furi_log_puts(tmp_str);
+        furi_log_puts("\r\n");
+
+        if(stacked_pc >= 0x0807E000 && stacked_pc < 0x080C9000) {
+            furi_log_puts(" -- PC is in XIP flash region (flash contention?)\r\n");
+        }
+    }
+
     furi_log_puts(_FURI_LOG_CLR_RESET);
 
     furi_crash("BusFault");
