@@ -5,9 +5,16 @@
 
 #define TAG "XIP"
 
+static bool xip_region_in_use = false;
+
 void xip_region_init(XipRegion* region) {
     furi_check(region);
     memset(region, 0, sizeof(XipRegion));
+
+    if(xip_region_in_use) {
+        FURI_LOG_W(TAG, "XIP region already in use by another app, skipping");
+        return;
+    }
 
     size_t free_start = furi_hal_flash_get_free_page_start_address();
     size_t free_end = (size_t)furi_hal_flash_get_free_end_address();
@@ -34,6 +41,7 @@ void xip_region_init(XipRegion* region) {
     region->next_free = region->data_start;
     region->active = true;
     region->cache_valid = false;
+    xip_region_in_use = true;
 
     FURI_LOG_I(
         TAG,
@@ -41,6 +49,15 @@ void xip_region_init(XipRegion* region) {
         region->base_addr,
         region->end_addr,
         XIP_REGION_MAX_SIZE / 1024);
+}
+
+void xip_region_release(XipRegion* region) {
+    furi_check(region);
+    if(region->active) {
+        xip_region_in_use = false;
+        region->active = false;
+        FURI_LOG_D(TAG, "Region released");
+    }
 }
 
 bool xip_cache_validate(

@@ -159,6 +159,29 @@ const FuriHalFlashRawOptionByteData* furi_hal_flash_ob_get_raw_ptr(void);
  */
 void furi_hal_flash_flush_cache(void);
 
+/** Begin a batch of flash operations.
+ *
+ * Acquires the Core2 mutex and sends a single SHCI_C2_FLASH_EraseActivity(ON)
+ * notification. All subsequent furi_hal_flash_erase / furi_hal_flash_write_block
+ * calls will skip per-operation Core2 locking while the batch is active.
+ *
+ * Must be paired with furi_hal_flash_batch_end().
+ * BLE operations are paused for the duration of the batch.
+ */
+void furi_hal_flash_batch_begin(void);
+
+/** End a batch of flash operations.
+ *
+ * Sends SHCI_C2_FLASH_EraseActivity(OFF) and releases the Core2 mutex.
+ * BLE operations resume after this call.
+ */
+void furi_hal_flash_batch_end(void);
+
+/** Check if a flash batch is currently active.
+ * @return true if between batch_begin and batch_end
+ */
+bool furi_hal_flash_batch_is_active(void);
+
 #ifdef __cplusplus
 }
 #endif

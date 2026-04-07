@@ -53,6 +53,7 @@ struct ELFFile {
     ELFDebugLinkInfo debug_link_info;
 
     XipRegion xip_region;
+    bool xip_disabled; /**< When true, skip XIP setup (used for plugins) */
 
     ELFSection* preinit_array;
     ELFSection* init_array;

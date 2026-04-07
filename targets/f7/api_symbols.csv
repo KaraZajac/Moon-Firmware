@@ -1068,6 +1068,7 @@ Function,-,fiprintf,int,"FILE*, const char*, ..."
 Function,-,fiscanf,int,"FILE*, const char*, ..."
 Function,+,flipper_application_alloc,FlipperApplication*,"Storage*, const ElfApiInterface*"
 Function,+,flipper_application_alloc_thread,FuriThread*,"FlipperApplication*, const char*"
+Function,?,flipper_application_disable_xip,void,FlipperApplication*
 Function,+,flipper_application_free,void,FlipperApplication*
 Function,+,flipper_application_get_manifest,const FlipperApplicationManifest*,FlipperApplication*
 Function,+,flipper_application_is_plugin,_Bool,FlipperApplication*
@@ -1328,6 +1329,9 @@ Function,+,furi_hal_debug_is_gdb_session_active,_Bool,
 Function,-,furi_hal_deinit_early,void,
 Function,+,furi_hal_dma_deinit_early,void,
 Function,+,furi_hal_dma_init_early,void,
+Function,?,furi_hal_flash_batch_begin,void,
+Function,?,furi_hal_flash_batch_end,void,
+Function,?,furi_hal_flash_batch_is_active,_Bool,
 Function,-,furi_hal_flash_erase,void,uint8_t
 Function,+,furi_hal_flash_flush_cache,void,
 Function,-,furi_hal_flash_get_base,size_t,

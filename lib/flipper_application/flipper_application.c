@@ -66,6 +66,11 @@ FlipperApplication*
     return app;
 }
 
+void flipper_application_disable_xip(FlipperApplication* app) {
+    furi_check(app);
+    elf_file_disable_xip(app->elf);
+}
+
 bool flipper_application_is_plugin(FlipperApplication* app) {
     furi_check(app);
     return app->manifest.stack_size == 0;

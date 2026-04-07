@@ -65,6 +65,14 @@ ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface);
 void elf_file_free(ELFFile* elf_file);
 
 /**
+ * @brief Disable XIP for this ELF instance.
+ * Plugins must not use XIP since they share the flash region with the main app.
+ * Call after alloc but before loading section table.
+ * @param elf_file
+ */
+void elf_file_disable_xip(ELFFile* elf_file);
+
+/**
  * @brief Open ELF file
  * @param elf_file 
  * @param path 

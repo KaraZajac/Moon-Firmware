@@ -112,6 +112,13 @@ FlipperApplicationLoadStatus flipper_application_map_to_memory(FlipperApplicatio
  */
 FuriThread* flipper_application_alloc_thread(FlipperApplication* app, const char* args);
 
+/** Disable XIP for this application instance.
+ * Must be called before preload. Plugins should always have XIP disabled
+ * since the flash region is owned by the main app.
+ * @param app Application pointer
+ */
+void flipper_application_disable_xip(FlipperApplication* app);
+
 /** Check if application is a plugin (not a runnable standalone app)
  * @param app Application pointer
  * @return true if application is a plugin, false otherwise

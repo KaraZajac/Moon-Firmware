@@ -49,6 +49,8 @@
  */
 #define FURI_HAL_FLASH_C2_LOCK_TIMEOUT_MS (3000U) /* 3 seconds */
 
+static volatile bool furi_hal_flash_batch_active = false;
+
 #define IS_ADDR_ALIGNED_64BITS(__VALUE__) (((__VALUE__) & 0x7U) == (0x00UL))
 #define IS_FLASH_PROGRAM_ADDRESS(__VALUE__)                                             \
     (((__VALUE__) >= FLASH_BASE) && ((__VALUE__) <= (FLASH_BASE + FLASH_SIZE - 8UL)) && \
@@ -182,6 +184,18 @@ static void furi_hal_flash_begin_with_core2(bool erase_flag) {
 }
 
 static void furi_hal_flash_begin(bool erase_flag) {
+    if(furi_hal_flash_batch_active) {
+        /* Batch mode: Core2 mutex + SHCI already held by batch_begin.
+         * Just do the per-operation flash controller setup. */
+        if(furi_hal_bt_is_alive()) {
+            /* Still need per-op HSEM + critical section for the actual flash access */
+            furi_hal_flash_begin_with_core2(false); /* false = skip SHCI notification */
+        } else {
+            furi_hal_flash_unlock();
+        }
+        return;
+    }
+
     /* Acquire dangerous ops mutex */
     furi_hal_bt_lock_core2();
 
@@ -217,6 +231,16 @@ static void furi_hal_flash_end_with_core2(bool erase_flag) {
 }
 
 static void furi_hal_flash_end(bool erase_flag) {
+    if(furi_hal_flash_batch_active) {
+        /* Batch mode: release per-op locks but keep Core2 mutex + SHCI */
+        if(furi_hal_bt_is_alive()) {
+            furi_hal_flash_end_with_core2(false); /* false = skip SHCI OFF */
+        } else {
+            furi_hal_flash_lock();
+        }
+        return;
+    }
+
     /* If Core2 is running - use IPC locking */
     if(furi_hal_bt_is_alive()) {
         furi_hal_flash_end_with_core2(erase_flag);
@@ -250,6 +274,32 @@ void furi_hal_flash_flush_cache(void) {
         /* Enable data cache */
         LL_FLASH_EnableDataCache();
     }
+}
+
+void furi_hal_flash_batch_begin(void) {
+    furi_check(!furi_hal_flash_batch_active);
+    furi_hal_bt_lock_core2();
+    if(furi_hal_bt_is_alive()) {
+        furi_hal_power_insomnia_enter();
+        /* Notify Core2 once to suspend flash activity for the entire batch */
+        SHCI_C2_FLASH_EraseActivity(ERASE_ACTIVITY_ON);
+        furi_delay_us(5);
+    }
+    furi_hal_flash_batch_active = true;
+}
+
+void furi_hal_flash_batch_end(void) {
+    furi_check(furi_hal_flash_batch_active);
+    furi_hal_flash_batch_active = false;
+    if(furi_hal_bt_is_alive()) {
+        SHCI_C2_FLASH_EraseActivity(ERASE_ACTIVITY_OFF);
+        furi_hal_power_insomnia_exit();
+    }
+    furi_hal_bt_unlock_core2();
+}
+
+bool furi_hal_flash_batch_is_active(void) {
+    return furi_hal_flash_batch_active;
 }
 
 bool furi_hal_flash_wait_last_operation(uint32_t timeout) {

@@ -123,6 +123,13 @@ bool xip_region_erase(XipRegion* region);
  */
 bool xip_region_commit(XipRegion* region, uint32_t flash_addr, const void* ram_data, size_t size);
 
+/** Release the XIP region so another app can use it.
+ *  Called when the app using XIP is freed.
+ *
+ *  @param region   XIP region to release
+ */
+void xip_region_release(XipRegion* region);
+
 /** Get total bytes allocated so far.
  *
  *  @param region   XIP region

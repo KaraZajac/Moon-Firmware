@@ -882,6 +882,7 @@ ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface) 
     ELFFile* elf = malloc(sizeof(ELFFile));
     elf->fd = storage_file_alloc(storage);
     elf->api_interface = api_interface;
+    elf->xip_disabled = false;
     ELFSectionDict_init(elf->sections);
     AddressCache_init(elf->trampoline_cache);
     elf->init_array_called = false;
@@ -889,7 +890,15 @@ ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface) 
     return elf;
 }
 
+void elf_file_disable_xip(ELFFile* elf) {
+    furi_check(elf);
+    elf->xip_disabled = true;
+}
+
 void elf_file_free(ELFFile* elf) {
+    /* Release XIP flash region so the next app can use it */
+    xip_region_release(&elf->xip_region);
+
     // furi_check(!elf->init_array_called);
     if(elf->init_array_called) {
         FURI_LOG_W(TAG, "Init array was called, but fini array wasn't");
@@ -965,6 +974,13 @@ static bool elf_section_is_xip_eligible(const ELFSection* section) {
 }
 
 static void elf_setup_xip(ELFFile* elf) {
+    /* Plugins must not use XIP — they share the flash region with the main app */
+    if(elf->xip_disabled) {
+        memset(&elf->xip_region, 0, sizeof(XipRegion));
+        FURI_LOG_D(TAG, "XIP disabled for this ELF (plugin mode)");
+        return;
+    }
+
     /* Check if all sections fit in RAM — if so, skip XIP entirely.
      * RAM execution is faster and avoids flash wear. */
     size_t total_alloc_size = 0;
@@ -1717,9 +1733,15 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
         /* Cache hit — XIP sections already in flash, nothing to do */
         FURI_LOG_I(TAG, "XIP cache hit: skipping erase/write, sections already in flash");
     } else if(status == ELFFileLoadStatusSuccess && elf->xip_region.active) {
+        /* Batch Core2 locking: one SHCI notification for the entire erase+write
+         * sequence instead of per-page cycling. Prevents BLE semaphore timeout
+         * crashes and dramatically speeds up the flash operations. */
+        furi_hal_flash_batch_begin();
+
         /* Erase all XIP flash pages upfront */
         if(!xip_region_erase(&elf->xip_region)) {
             FURI_LOG_E(TAG, "XIP flash erase failed");
+            furi_hal_flash_batch_end();
             status = ELFFileLoadStatusUnspecifiedError;
         }
 
@@ -1823,6 +1845,9 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
                 xip_cache_commit_header(&elf->xip_region, &cache_hdr);
             }
         }
+
+        /* End batch — resume BLE operations */
+        furi_hal_flash_batch_end();
     }
 
     /* Phase 3: Fix up entry point */
