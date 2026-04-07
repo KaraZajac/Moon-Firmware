@@ -50,7 +50,7 @@ void plugin_manager_free(PluginManager* manager) {
 PluginManagerError plugin_manager_load_single(PluginManager* manager, const char* path) {
     furi_check(manager);
     FlipperApplication* lib = flipper_application_alloc(manager->storage, manager->api_interface);
-    flipper_application_disable_xip(lib);
+    /* XIP is auto-disabled for plugins in flipper_application_load() */
 
     PluginManagerError error = PluginManagerErrorNone;
     do {

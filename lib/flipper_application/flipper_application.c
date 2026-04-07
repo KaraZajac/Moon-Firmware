@@ -209,6 +209,15 @@ static FlipperApplicationPreloadStatus
         app->preloaded_manifest = true;
     }
 
+    /* Auto-disable XIP for plugins. Plugins are small (< 40 KB), always fit
+     * in RAM, and must not touch the XIP flash region owned by the main app.
+     * This catches ALL plugin loading paths (plugin_manager, nfc_supported_cards,
+     * and any future code) without requiring each caller to remember to call
+     * flipper_application_disable_xip(). */
+    if(load_full && app->manifest.stack_size == 0) {
+        elf_file_disable_xip(app->elf);
+    }
+
     return flipper_application_validate_manifest(app);
 }
 
