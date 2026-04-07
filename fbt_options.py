@@ -49,18 +49,18 @@ SKIP_EXTERNAL = False
 EXTRA_EXT_APPS = []
 
 # Coprocessor firmware
-COPRO_OB_DATA = "scripts/ob.data"
+COPRO_OB_DATA = "scripts/ob_custradio.data"
 
 # Must match lib/stm32wb_copro version
 COPRO_CUBE_VERSION = "1.20.0"
 
 COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
-# Default radio stack
-COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_light_fw.bin"
-# BLE central/scanning requires "ble_full" — flash full stack via
-# STM32CubeProgrammer before switching this (see ReadMe.md).
-COPRO_STACK_TYPE = "ble_light"
+# BLE Full Extended stack — enables central/scanning, extended advertising,
+# multiple advertising sets, and GATT client.  Uses 47 flash pages (188 KB)
+# but only 12 KB of Core2 SRAM (vs 29 KB for light stack).
+COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_extended_fw.bin"
+COPRO_STACK_TYPE = "ble_full_ext_adv"
 
 # Leave 0 to let scripts automatically calculate it
 COPRO_STACK_ADDR = "0x0"

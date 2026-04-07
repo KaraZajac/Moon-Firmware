@@ -9,8 +9,10 @@
 extern "C" {
 #endif
 
-/** Maximum size of the XIP flash region (300KB = 75 pages of 4KB) */
-#define XIP_REGION_MAX_SIZE (300 * 1024)
+/** Maximum size of the XIP flash region (280KB = 70 pages of 4KB).
+ *  Sized to fit alongside the BLE Full Extended stack (47 pages)
+ *  with a small margin before the radio region. */
+#define XIP_REGION_MAX_SIZE (280 * 1024)
 
 /** Cache header magic value ("XIPC") */
 #define XIP_CACHE_MAGIC 0x58495043
