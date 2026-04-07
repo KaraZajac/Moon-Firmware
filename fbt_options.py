@@ -59,11 +59,13 @@ COPRO_CUBE_VERSION = "1.20.0"
 
 COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
-# Radio stack — bundled in update package for reference/manual install.
-# The updater will NOT force-swap stack types to avoid FUS corruption.
-# To switch stacks, use STM32CubeProgrammer via SWD.
-COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_light_fw.bin"
-COPRO_STACK_TYPE = "ble_light"
+# BLE Full Extended stack — central/scanning, extended advertising,
+# multiple ad sets, GATT client. 47 flash pages, 12KB Core2 SRAM.
+# Core2 option bytes (SFSA, SBRSA, etc.) are intentionally omitted
+# from ob_custradio.data so the updater does NOT validate them —
+# FUS manages these automatically during stack install.
+COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_extended_fw.bin"
+COPRO_STACK_TYPE = "ble_full_ext_adv"
 
 # Leave 0 to let scripts automatically calculate it
 COPRO_STACK_ADDR = "0x0"
