@@ -538,10 +538,6 @@ void furi_hal_subghz_start_async_rx(FuriHalSubGhzCaptureCallback callback, void*
     furi_check(furi_hal_subghz.state == SubGhzStateIdle);
     furi_check(callback);
 
-    /* Prevent Core2 flash operations during RX capture. The timer ISR calls
-     * protocol decoder callbacks that may reside in XIP flash. */
-    furi_hal_flash_protect_during_execution();
-
     furi_hal_subghz.state = SubGhzStateAsyncRx;
 
     furi_hal_subghz_capture_callback = callback;
@@ -625,9 +621,6 @@ void furi_hal_subghz_stop_async_rx(void) {
     furi_hal_interrupt_set_isr(FuriHalInterruptIdTIM2, NULL, NULL);
 
     furi_hal_gpio_init(&gpio_cc1101_g0, GpioModeAnalog, GpioPullNo, GpioSpeedLow);
-
-    /* Resume Core2 flash operations now that RX ISR is stopped */
-    furi_hal_flash_unprotect_during_execution();
 }
 
 typedef enum {
