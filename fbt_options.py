@@ -48,24 +48,19 @@ SKIP_EXTERNAL = False
 # Appid's to include even when skipping externals
 EXTRA_EXT_APPS = []
 
-# Coprocessor firmware
-# Use ob_custradio.data which omits read-only Core2 fields (SFSA, SBRSA, etc.)
-# so the updater does NOT try to validate or change the radio stack config.
-# The radio stack must be flashed separately via STM32CubeProgrammer.
-COPRO_OB_DATA = "scripts/ob_custradio.data"
+# Coprocessor firmware — match carter-0's proven approach:
+# use ob.data (standard OB file) with ble_full stack.
+COPRO_OB_DATA = "scripts/ob.data"
 
 # Must match lib/stm32wb_copro version
 COPRO_CUBE_VERSION = "1.20.0"
 
 COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
-# BLE Full Extended stack — central/scanning, extended advertising,
-# multiple ad sets, GATT client. 47 flash pages, 12KB Core2 SRAM.
-# Core2 option bytes (SFSA, SBRSA, etc.) are intentionally omitted
-# from ob_custradio.data so the updater does NOT validate them —
-# FUS manages these automatically during stack install.
-COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_extended_fw.bin"
-COPRO_STACK_TYPE = "ble_full_ext_adv"
+# BLE Full stack — central/scanning, GATT client, 8 connections.
+# Same stack carter-0 uses successfully.
+COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_fw.bin"
+COPRO_STACK_TYPE = "ble_full"
 
 # Leave 0 to let scripts automatically calculate it
 COPRO_STACK_ADDR = "0x0"

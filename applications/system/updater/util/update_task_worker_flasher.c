@@ -96,17 +96,8 @@ static bool update_task_write_stack_data(UpdateTask* update_task) {
     uint32_t stack_size = storage_file_size(update_task->file);
     storage_file_seek(update_task->file, 0, true);
 
-    /* Validate radio stack address against total flash bounds only.
-     * Do NOT use check_address_boundaries() here — it checks against SFSA
-     * (Secure Flash Start Address), which reflects the OLD stack's secure
-     * region.  A larger stack (e.g. switching light→full_extended) needs to
-     * write past the old SFSA boundary.  FUS manages the actual secure
-     * region and will set SFSA correctly during stack install. */
-    const size_t flash_base = furi_hal_flash_get_base();
-    const size_t flash_end = flash_base + 1024 * 1024; /* STM32WB55: 1 MB flash */
-    if(update_task->manifest->radio_address < flash_base ||
-       (update_task->manifest->radio_address + stack_size) > flash_end) {
-        FURI_LOG_E(TAG, "Radio address 0x%lX out of flash bounds", update_task->manifest->radio_address);
+    if(!check_address_boundaries(update_task->manifest->radio_address) ||
+       !check_address_boundaries(update_task->manifest->radio_address + stack_size)) {
         return false;
     }
 
@@ -157,13 +148,6 @@ static bool update_task_write_stack(UpdateTask* update_task) {
 
         CHECK_RESULT(update_task_write_stack_data(update_task));
         update_task_set_progress(update_task, UpdateTaskStageRadioInstall, 10);
-
-        /* Reset hardware CRC peripheral before FUS call. FUS uses CRC
-         * internally but does NOT reset it — stale state from M4 code
-         * causes FUS_STATE_ERROR_IMG_CORRUPT (ST errata). */
-        CRC->CR |= CRC_CR_RESET;
-        __DSB();
-
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
         update_task_set_progress(update_task, UpdateTaskStageProgress, 80);
@@ -229,13 +213,7 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
             /* OK, we're in FUS mode. */
             FURI_LOG_W(TAG, "Waiting for FUS to settle");
             update_task_set_progress(update_task, UpdateTaskStageProgress, 30);
-            if(ble_glue_fus_wait_operation() != BleGlueCommandResultOK) {
-                /* FUS may have a lingering error from a previous failed operation.
-                 * Per ST docs, calling GetState again clears the error. */
-                FURI_LOG_W(TAG, "Clearing FUS error state");
-                ble_glue_fus_get_status();
-                CHECK_RESULT(ble_glue_fus_wait_operation() == BleGlueCommandResultOK);
-            }
+            CHECK_RESULT(ble_glue_fus_wait_operation() == BleGlueCommandResultOK);
             if(stack_version_match) {
                 /* We can't check StackType with FUS, but partial version matches */
                 if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update)) {
