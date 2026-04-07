@@ -112,6 +112,17 @@ void furi_hal_flash_write_dword(size_t address, uint64_t data);
  */
 void furi_hal_flash_program_page(const uint8_t page, const uint8_t* data, uint16_t length);
 
+/** Write block of data to pre-erased flash using fast programming
+ *
+ * @warning locking operation with critical section, stalls execution.
+ *          Flash must be erased before calling this function.
+ *
+ * @param      address  destination address, must be 8-byte aligned
+ * @param      data     source data
+ * @param      length   number of bytes to write (handles non-8-byte-aligned tail)
+ */
+void furi_hal_flash_write_block(size_t address, const uint8_t* data, size_t length);
+
 /** Get flash page number for address
  *
  * @return     page number, -1 for invalid address
@@ -140,6 +151,13 @@ void furi_hal_flash_ob_apply(void);
  * @return     pointer to read-only data of OB (raw + complementary values)
  */
 const FuriHalFlashRawOptionByteData* furi_hal_flash_ob_get_raw_ptr(void);
+
+/** Flush instruction and data caches
+ *
+ * Must be called after writing executable code to flash
+ * to ensure the CPU fetches the updated content.
+ */
+void furi_hal_flash_flush_cache(void);
 
 #ifdef __cplusplus
 }
