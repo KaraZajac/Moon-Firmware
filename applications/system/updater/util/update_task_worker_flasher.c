@@ -149,12 +149,19 @@ static bool update_task_write_stack(UpdateTask* update_task) {
         CHECK_RESULT(update_task_write_stack_data(update_task));
         update_task_set_progress(update_task, UpdateTaskStageRadioInstall, 10);
 
-        /* Reset hardware CRC peripheral before FUS call.  FUS uses CRC
-         * internally to validate the radio binary but does NOT reset the
-         * peripheral — stale state left by crc32_calc_file() above causes
-         * FUS to report FUS_STATE_ERROR_IMG_CORRUPT. */
-        CRC->CR |= CRC_CR_RESET;
-        __DSB();
+        /* Log flash OB state before FUS install for diagnostics */
+        {
+            uint32_t srrvr = READ_REG(FLASH->SRRVR);
+            uint32_t sbrv = srrvr & FLASH_SRRVR_SBRV_Msk;
+            uint32_t sfsa =
+                (READ_REG(FLASH->SFR) & FLASH_SFR_SFSA_Msk) >> FLASH_SFR_SFSA_Pos;
+            FURI_LOG_E(
+                TAG,
+                "Pre-install: radio_addr=0x%08lX SBRV=0x%lX SFSA=0x%lX",
+                manifest->radio_address,
+                sbrv,
+                sfsa);
+        }
 
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
@@ -185,6 +192,21 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
     update_task_set_progress(update_task, UpdateTaskStageRadioBusy, 10);
     bool success = false;
     do {
+        /* Log OB state on every boot cycle for radio stack diagnostics */
+        {
+            uint32_t srrvr = READ_REG(FLASH->SRRVR);
+            uint32_t sbrv = srrvr & FLASH_SRRVR_SBRV_Msk;
+            uint32_t sfsa =
+                (READ_REG(FLASH->SFR) & FLASH_SFR_SFSA_Msk) >> FLASH_SFR_SFSA_Pos;
+            FURI_LOG_E(
+                TAG,
+                "Radio mgmt: SBRV=0x%lX (entry=0x%08lX) SFSA=0x%lX C2Update=%d",
+                sbrv,
+                (sbrv << 2) + FLASH_BASE,
+                sfsa,
+                furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update));
+        }
+
         CHECK_RESULT(ble_glue_wait_for_c2_start(FURI_HAL_BT_C2_START_TIMEOUT));
 
         const BleGlueC2Info* c2_state = ble_glue_get_c2_info();

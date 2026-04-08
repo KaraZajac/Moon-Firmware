@@ -8,6 +8,7 @@
 #include <core/timer.h>
 #include <ble/ble.h>
 #include <hci_tl.h>
+#include <stm32wbxx.h>
 
 #include <interface/patterns/ble_thread/tl/tl.h>
 #include <interface/patterns/ble_thread/shci/shci.h>
@@ -287,6 +288,19 @@ BleGlueCommandResult ble_glue_force_c2_mode(BleGlueC2Mode desired_mode) {
             FURI_LOG_W(TAG, "Stack isn't installed!");
             return BleGlueCommandResultError;
         }
+        /* Log SBRV and SFSA before switching to Stack mode — if SBRV is
+         * wrong (stale from a previous stack), C2 will jump to the wrong
+         * address and crash, hanging M4 in shci_cmd_resp_wait(). */
+        uint32_t srrvr = READ_REG(FLASH->SRRVR);
+        uint32_t sbrv = srrvr & FLASH_SRRVR_SBRV_Msk;
+        uint32_t sfsa = (READ_REG(FLASH->SFR) & FLASH_SFR_SFSA_Msk) >> FLASH_SFR_SFSA_Pos;
+        FURI_LOG_E(
+            TAG,
+            "StartWs: SBRV=0x%lX (entry=0x%08lX) SFSA=0x%lX (page %lu)",
+            sbrv,
+            (sbrv << 2) + FLASH_BASE,
+            sfsa,
+            sfsa);
         SHCI_CmdStatus_t status = SHCI_C2_FUS_StartWs();
         if(status) {
             FURI_LOG_E(TAG, "Failed to start Radio Stack with status: %02X", status);
