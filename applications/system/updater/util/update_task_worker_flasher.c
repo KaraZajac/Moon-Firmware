@@ -148,6 +148,14 @@ static bool update_task_write_stack(UpdateTask* update_task) {
 
         CHECK_RESULT(update_task_write_stack_data(update_task));
         update_task_set_progress(update_task, UpdateTaskStageRadioInstall, 10);
+
+        /* Reset hardware CRC peripheral before FUS call.  FUS uses CRC
+         * internally to validate the radio binary but does NOT reset the
+         * peripheral — stale state left by crc32_calc_file() above causes
+         * FUS to report FUS_STATE_ERROR_IMG_CORRUPT. */
+        CRC->CR |= CRC_CR_RESET;
+        __DSB();
+
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
         update_task_set_progress(update_task, UpdateTaskStageProgress, 80);

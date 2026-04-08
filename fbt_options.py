@@ -49,8 +49,9 @@ SKIP_EXTERNAL = False
 EXTRA_EXT_APPS = []
 
 # Coprocessor firmware — match carter-0's proven approach:
-# use ob.data (standard OB file) with ble_full stack.
-COPRO_OB_DATA = "scripts/ob.data"
+# use ob_custradio.data which omits Core2 secure fields (SFSA, SBRSA,
+# SNBRSA, SBRV, C2OPT) so FUS manages them during radio stack install.
+COPRO_OB_DATA = "scripts/ob_custradio.data"
 
 # Must match lib/stm32wb_copro version
 COPRO_CUBE_VERSION = "1.20.0"

@@ -14,12 +14,7 @@ IWDGSTOP:0x1:rw
 IWDGSW:0x1:rw
 IPCCDBA:0x0:rw
 ESE:0x1:r
-# Core2 secure flash/SRAM fields intentionally omitted.
-# These are managed by FUS during radio stack install — the updater
-# must NOT validate or attempt to change them, as mismatches on
-# read-only fields can stall the update and corrupt FUS state.
-# Flash the radio stack via STM32CubeProgrammer instead.
-#SFSA:0xC5:r
+#SFSA:0xD7:r
 FSD:0x0:r
 DDS:0x1:r
 #C2OPT:0x1:r
