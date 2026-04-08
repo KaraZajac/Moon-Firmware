@@ -118,7 +118,17 @@ void HW_IPCC_SYS_SendCmd(void) {
     FuriHalCortexTimer timer = furi_hal_cortex_timer_get(IPCC_SEND_CMD_TIMEOUT_US);
 
     while(LL_C1_IPCC_IsActiveFlag_CHx(IPCC, HW_IPCC_SYSTEM_CMD_RSP_CHANNEL)) {
-        furi_check(!furi_hal_cortex_timer_is_expired(timer), "HW_IPCC_SYS_SendCmd timeout");
+        if(furi_hal_cortex_timer_is_expired(timer)) {
+            /* Bloodmoon: do NOT furi_check/crash here.  During radio stack
+             * transitions (Light→Full), C2 may not respond if SBRV is stale
+             * or FUS is mid-reboot.  furi_crash kills interrupts, LED, USB —
+             * making the device appear completely bricked with no recovery
+             * except a 30-second power drain.  Instead, log the error, clear
+             * the channel flag, and return so the caller can handle it. */
+            FURI_LOG_E("IPCC", "SYS_SendCmd timeout — C2 not responding");
+            LL_C1_IPCC_ClearFlag_CHx(IPCC, HW_IPCC_SYSTEM_CMD_RSP_CHANNEL);
+            return;
+        }
     }
 
     HW_IPCC_SYS_CmdEvtHandler();

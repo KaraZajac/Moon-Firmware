@@ -8,6 +8,7 @@
 #include <interface/patterns/ble_thread/tl/hci_tl.h>
 
 #include <furi_hal_cortex.h>
+#include <furi.h>
 
 #define TAG "BleEvt"
 
@@ -97,27 +98,30 @@ void ble_event_thread_start(void) {
     furi_thread_start(event_thread);
 }
 
-/* Override ST's weak shci_cmd_resp_wait with a version that has a real
- * timeout.  The default is a bare while() spinloop that ignores the
- * timeout parameter entirely — if M0+ never responds (FUS mid-reboot,
- * C2 crash from bad SBRV, etc.) the MCU locks up completely: no
- * interrupts, no charging LED, no DFU.  This override polls with
- * furi_delay_us to keep the system alive and crashes cleanly on
- * timeout so the device can recover. */
-extern volatile SHCI_TL_CmdRespStatus_t CmdRspStatusFlag;
+/* Override ST's weak shci_cmd_resp_wait/release with versions that have
+ * a real timeout.  ST's default shci_cmd_resp_wait is a bare while()
+ * spinloop that ignores the timeout parameter entirely — if M0+ never
+ * responds (FUS mid-reboot, C2 crash from bad SBRV, etc.) the MCU
+ * locks up completely: no interrupts, no charging LED, no DFU.
+ *
+ * CmdRspStatusFlag in shci_tl.c is static, so we use our own flag
+ * and override both wait and release. */
+static volatile bool shci_cmd_resp_done = false;
 
 void shci_cmd_resp_wait(uint32_t timeout) {
     FuriHalCortexTimer timer = furi_hal_cortex_timer_get(timeout * 1000);
 
-    while(CmdRspStatusFlag != SHCI_TL_CMD_RESP_RELEASE) {
+    while(!shci_cmd_resp_done) {
         if(furi_hal_cortex_timer_is_expired(timer)) {
             FURI_LOG_E(TAG, "shci_cmd_resp_wait TIMEOUT (%lums)", timeout);
-            /* Don't furi_crash here — let the caller handle the error.
-             * Break out so shci_send returns stale/zero response data,
-             * which the caller will interpret as an error. */
             break;
         }
-        /* Yield briefly to keep RTOS scheduler and interrupts alive */
         furi_delay_us(100);
     }
+    shci_cmd_resp_done = false;
+}
+
+void shci_cmd_resp_release(uint32_t flag) {
+    UNUSED(flag);
+    shci_cmd_resp_done = true;
 }
