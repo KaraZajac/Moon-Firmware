@@ -997,6 +997,7 @@ static bool elf_section_is_xip_eligible(const ELFSection* section) {
 static void elf_xip_assign_addresses(ELFFile* elf) {
     elf->xip_region.next_free = elf->xip_region.data_start;
     elf->xip_region.cache_valid = false;
+    elf->xip_region.needs_rerelocation = false;
 
     /* Clear any stale XIP state on sections */
     ELFSectionDict_it_t it;
@@ -1246,20 +1247,22 @@ ElfLoadSectionTableResult elf_file_load_section_table(ELFFile* elf) {
             /* Validate RAM addresses against XIP cache.
              * XIP code in flash contains relocated pointers to RAM section
              * addresses from the first launch.  If RAM sections land at
-             * different addresses now, those pointers are stale and the
-             * app will crash.  Invalidate the cache and force a full
-             * re-relocation + flash write. */
+             * different addresses now, those pointers are stale.  Instead
+             * of a full cache invalidation (erase + re-flash), flag for
+             * in-place re-relocation: re-read raw data from the ELF file,
+             * apply relocations with current addresses, and patch only the
+             * flash pages that actually changed. */
             if(elf->xip_region.active && elf->xip_region.cache_valid) {
                 uint32_t current_hash = elf_compute_ram_addr_hash(elf);
                 const XipCacheHeader* hdr = xip_cache_get_header(&elf->xip_region);
                 if(!hdr || hdr->ram_addr_hash != current_hash) {
-                    FURI_LOG_W(
+                    FURI_LOG_I(
                         TAG,
-                        "XIP cache invalidated: RAM addresses changed "
-                        "(cached=%08lX, current=%08lX)",
+                        "RAM addresses changed (cached=%08lX, current=%08lX)"
+                        " — will re-relocate XIP in place",
                         hdr ? hdr->ram_addr_hash : 0,
                         current_hash);
-                    elf_xip_assign_addresses(elf);
+                    elf->xip_region.needs_rerelocation = true;
                 }
             }
 
@@ -1316,8 +1319,13 @@ typedef struct {
 
 /** Stream an XIP section to flash page-by-page, applying relocations per-page.
  *  Only needs ~PAGE_SIZE + relocation entries in RAM at once, not the full section.
+ *
+ *  @param patch_mode  When true (cache hit with RAM addr mismatch): read raw data
+ *                     from ELF, apply relocations with current addresses, compare
+ *                     with existing flash, and only erase+write pages that differ.
+ *                     When false (normal fresh load): write every page to pre-erased flash.
  */
-static bool elf_xip_stream_section(ELFFile* elf, ELFSection* sec) {
+static bool elf_xip_stream_section(ELFFile* elf, ELFSection* sec, bool patch_mode) {
     const size_t PAGE_SIZE = 4096;
     const size_t OVERLAP = 8; /* Extra bytes on each side for boundary-crossing relocations */
 
@@ -1615,9 +1623,28 @@ skip_symbol_resolution:
         return false;
     }
 
+    /* In patch mode, allocate a full flash page buffer for read-modify-write */
+    uint8_t* flash_page_buf = NULL;
+    if(patch_mode) {
+        flash_page_buf = aligned_malloc(PAGE_SIZE, 8);
+        if(!flash_page_buf) {
+            FURI_LOG_E(TAG, "XIP patch: can't alloc flash page buffer");
+            aligned_free(buf);
+            if(rels) free(rels);
+            if(fast_records) free(fast_records);
+            return false;
+        }
+    }
+
     bool success = true;
     size_t total_pages = (sec->size + PAGE_SIZE - 1) / PAGE_SIZE;
-    FURI_LOG_I(TAG, "XIP stream: phase 4 — writing %zu pages to flash (%lums so far)", total_pages, furi_get_tick() - stream_start);
+    size_t pages_skipped = 0, pages_modified = 0;
+    FURI_LOG_I(
+        TAG,
+        "XIP %s: phase 4 — %zu pages (%lums so far)",
+        patch_mode ? "patch" : "stream",
+        total_pages,
+        furi_get_tick() - stream_start);
 
     for(size_t page_start = 0; page_start < sec->size; page_start += PAGE_SIZE) {
         size_t page_end = page_start + PAGE_SIZE;
@@ -1706,24 +1733,63 @@ skip_symbol_resolution:
             }
         }
 
-        /* Write only the page data (skip prefix overlap) to flash */
-        FURI_LOG_D(TAG, "XIP stream: writing page %zu/%zu", page_start / PAGE_SIZE + 1, total_pages);
-        if(!xip_region_commit(
-               &elf->xip_region,
-               sec->exec_addr + page_start,
-               buf + OVERLAP,
-               page_len)) {
-            FURI_LOG_E(TAG, "XIP stream: commit failed at offset %zu", page_start);
-            success = false;
-            break;
+        if(patch_mode) {
+            /* Compare relocated data with existing flash (memory-mapped) */
+            const void* flash_ptr = (const void*)(sec->exec_addr + page_start);
+            if(memcmp(flash_ptr, buf + OVERLAP, page_len) == 0) {
+                pages_skipped++;
+                continue;
+            }
+            pages_modified++;
+
+            /* Page differs — erase + write each flash page this chunk touches.
+             * Section data may not be flash-page-aligned, so one chunk can
+             * span two 4KB flash pages (e.g. section starts at offset 256). */
+            uint32_t addr_start = sec->exec_addr + page_start;
+            uint32_t addr_end = addr_start + page_len;
+            uint32_t fp_start = addr_start & ~(uint32_t)(PAGE_SIZE - 1);
+            uint32_t fp_end = (addr_end - 1) & ~(uint32_t)(PAGE_SIZE - 1);
+
+            for(uint32_t fp = fp_start; fp <= fp_end; fp += PAGE_SIZE) {
+                /* Read full flash page (preserves header / other section data) */
+                memcpy(flash_page_buf, (void*)fp, PAGE_SIZE);
+
+                /* Overlay new relocated section data for the overlapping range */
+                uint32_t ov_start = (fp > addr_start) ? fp : addr_start;
+                uint32_t ov_end = ((fp + PAGE_SIZE) < addr_end) ? (fp + PAGE_SIZE) : addr_end;
+                memcpy(
+                    flash_page_buf + (ov_start - fp),
+                    buf + OVERLAP + (ov_start - addr_start),
+                    ov_end - ov_start);
+
+                int16_t page_num = furi_hal_flash_get_page_number(fp);
+                furi_hal_flash_erase(page_num); /* also flushes I/D cache */
+                furi_hal_flash_write_block(fp, flash_page_buf, PAGE_SIZE);
+            }
+
+            /* Yield every 4 modified chunks to let BLE stack + watchdog breathe */
+            if(pages_modified % 4 == 0) {
+                furi_delay_tick(1);
+            }
+        } else {
+            /* Fresh write — flash was already bulk-erased */
+            if(!xip_region_commit(
+                   &elf->xip_region,
+                   sec->exec_addr + page_start,
+                   buf + OVERLAP,
+                   page_len)) {
+                FURI_LOG_E(TAG, "XIP stream: commit failed at offset %zu", page_start);
+                success = false;
+                break;
+            }
         }
-        FURI_LOG_D(TAG, "XIP stream: page %zu/%zu committed", page_start / PAGE_SIZE + 1, total_pages);
 
         /* Yield after every page to let BLE stack and watchdog breathe. */
         furi_delay_tick(1);
     }
 
     aligned_free(buf);
+    if(flash_page_buf) aligned_free(flash_page_buf);
     if(rels) free(rels);
     if(fast_records) free(fast_records);
 
@@ -1736,17 +1802,29 @@ skip_symbol_resolution:
 
     if(success) {
         sec->data = (void*)sec->exec_addr;
-        FURI_LOG_I(
-            TAG,
-            "XIP streamed %lu bytes to flash at 0x%08lX (heap: free=%zu max_block=%zu)",
-            sec->size,
-            sec->exec_addr,
-            memmgr_get_free_heap(),
-            memmgr_heap_get_max_free_block());
+        if(patch_mode) {
+            FURI_LOG_I(
+                TAG,
+                "XIP patched '%lu' bytes at 0x%08lX: %zu pages modified, %zu skipped (%lums)",
+                sec->size,
+                sec->exec_addr,
+                pages_modified,
+                pages_skipped,
+                furi_get_tick() - stream_start);
+        } else {
+            FURI_LOG_I(
+                TAG,
+                "XIP streamed %lu bytes to flash at 0x%08lX (heap: free=%zu max_block=%zu)",
+                sec->size,
+                sec->exec_addr,
+                memmgr_get_free_heap(),
+                memmgr_heap_get_max_free_block());
+        }
     } else {
         FURI_LOG_E(
             TAG,
-            "XIP stream FAILED (heap: free=%zu max_block=%zu)",
+            "XIP %s FAILED (heap: free=%zu max_block=%zu)",
+            patch_mode ? "patch" : "stream",
             memmgr_get_free_heap(),
             memmgr_heap_get_max_free_block());
     }
@@ -1780,13 +1858,69 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
     }
 
     /* Phase 1b + 2: XIP section processing.
-     * If cache is valid, skip entirely (data already in flash from previous launch).
+     * If cache is valid and addresses match, skip entirely.
+     * If cache is valid but RAM addrs changed, patch in place (selective flash writes).
      * Otherwise: erase flash, stream/stage sections, write cache header. */
     if(status == ELFFileLoadStatusSuccess && elf->xip_region.active &&
-       elf->xip_region.cache_valid) {
-        /* Cache hit — XIP sections already in flash, nothing to do */
-        FURI_LOG_I(TAG, "XIP cache hit: skipping erase/write, sections already in flash");
-    } else if(status == ELFFileLoadStatusSuccess && elf->xip_region.active) {
+       elf->xip_region.cache_valid && !elf->xip_region.needs_rerelocation) {
+        /* Cache hit, addresses match — XIP sections already correct in flash */
+        FURI_LOG_I(TAG, "XIP cache hit: no re-relocation needed");
+    } else if(status == ELFFileLoadStatusSuccess && elf->xip_region.active &&
+              elf->xip_region.cache_valid && elf->xip_region.needs_rerelocation) {
+        /* Cache hit but RAM addresses changed — re-relocate in place.
+         * Read raw section data from ELF, apply relocations with current addresses,
+         * compare with flash, and only erase+write pages that actually differ. */
+        FURI_LOG_I(TAG, "XIP re-relocation: patching cached flash in place");
+        furi_hal_flash_batch_begin();
+
+        for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
+            ELFSectionDict_next(it)) {
+            ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
+            ELFSection* sec = &itref->value;
+            if(!sec->xip || sec->size == 0) continue;
+
+            if(!elf_xip_stream_section(elf, sec, true)) {
+                FURI_LOG_E(TAG, "XIP patch failed for section '%s', falling back to full reload", itref->key);
+                status = ELFFileLoadStatusUnspecifiedError;
+                break;
+            }
+        }
+
+        /* Update cache header with new ram_addr_hash.
+         * The header lives in the first flash page — read-modify-write. */
+        if(status == ELFFileLoadStatusSuccess) {
+            uint8_t* page0 = aligned_malloc(4096, 8);
+            if(page0) {
+                memcpy(page0, (void*)elf->xip_region.base_addr, 4096);
+
+                XipCacheHeader* hdr = (XipCacheHeader*)page0;
+                hdr->ram_addr_hash = elf_compute_ram_addr_hash(elf);
+
+                int16_t page_num = furi_hal_flash_get_page_number(elf->xip_region.base_addr);
+                furi_hal_flash_erase(page_num);
+                furi_hal_flash_write_block(elf->xip_region.base_addr, page0, 4096);
+                aligned_free(page0);
+
+                FURI_LOG_I(TAG, "XIP cache header updated with new RAM address hash");
+            }
+        }
+
+        furi_hal_flash_flush_cache();
+        furi_hal_flash_batch_end();
+        elf->xip_region.needs_rerelocation = false;
+
+        if(status != ELFFileLoadStatusSuccess) {
+            /* Patch failed — fall back to full invalidation + re-flash.
+             * Reset sections and let the next branch handle it. */
+            FURI_LOG_W(TAG, "XIP patch failed, falling back to full re-flash");
+            elf_xip_assign_addresses(elf);
+            elf->xip_region.cache_valid = false;
+            status = ELFFileLoadStatusSuccess; /* Reset so the next branch runs */
+        }
+    }
+
+    if(status == ELFFileLoadStatusSuccess && elf->xip_region.active &&
+       !elf->xip_region.cache_valid) {
         /* Batch Core2 locking: one SHCI notification for the entire erase+write
          * sequence instead of per-page cycling. Prevents BLE semaphore timeout
          * crashes and dramatically speeds up the flash operations. */
@@ -1838,7 +1972,7 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
                         "Section '%s' (%lu bytes) too large for RAM, streaming to flash",
                         itref->key,
                         sec->size);
-                    if(!elf_xip_stream_section(elf, sec)) {
+                    if(!elf_xip_stream_section(elf, sec, false)) {
                         FURI_LOG_E(TAG, "XIP stream failed for section '%s'", itref->key);
                         status = ELFFileLoadStatusUnspecifiedError;
                         break;

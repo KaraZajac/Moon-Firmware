@@ -57,6 +57,7 @@ typedef struct {
     uint32_t next_free; /**< Next available address (bump pointer) */
     bool active; /**< Whether XIP is available */
     bool cache_valid; /**< True if cached XIP data matches current app */
+    bool needs_rerelocation; /**< Cache hit but RAM addrs changed — patch in place */
 } XipRegion;
 
 /** Initialize XIP region from free flash.
