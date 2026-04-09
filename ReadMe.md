@@ -1,7 +1,7 @@
 <h1 align="center">Moon Firmware</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/release-001-blue" alt="Release 001">
+  <img src="https://img.shields.io/badge/release-003-blue" alt="Release 003">
   <img src="https://img.shields.io/badge/status-experimental-red" alt="Experimental">
   <img src="https://img.shields.io/badge/target-STM32WB55-green" alt="STM32WB55">
 </p>

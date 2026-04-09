@@ -1,6 +1,6 @@
 [submodule "applications/external"]
 	path = applications/external
-	url = https://github.com/KaraZajac/Momentum-Apps.git
+	url = https://github.com/KaraZajac/Moon-Apps.git
 	branch = subghz-private-libs
 [submodule "assets/protobuf"]
 	path = assets/protobuf
