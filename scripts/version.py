@@ -84,7 +84,7 @@ class GitVersion:
         if len(origins) == 1:
             return origins
         else:
-            return set(["https://github.com/KaraZajac/Flipper-Moon"])
+            return set(["https://github.com/KaraZajac/Moon-Firmware"])
 
     def _exec_git(self, args):
         cmd = ["git"]
