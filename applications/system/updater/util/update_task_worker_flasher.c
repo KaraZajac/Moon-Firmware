@@ -163,6 +163,17 @@ static bool update_task_write_stack(UpdateTask* update_task) {
                 sfsa);
         }
 
+        /* Flash firmware DFU BEFORE FUS_FwUpgrade.  FUS will reboot the
+         * system after installing the stack, changing SRAM2 boundaries
+         * (SBRSA/SNBRSA).  The old firmware (e.g. Momentum, built for
+         * BLE Light) can't handle the new SRAM2 layout → BusFault on
+         * boot → dead device.  Writing our firmware first ensures the
+         * post-FUS-reboot boots into firmware built for the new stack. */
+        if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
+            FURI_LOG_W(TAG, "Pre-flashing firmware before FUS install");
+            CHECK_RESULT(update_task_write_dfu(update_task));
+        }
+
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
         update_task_set_progress(update_task, UpdateTaskStageProgress, 80);
@@ -367,24 +378,16 @@ int32_t update_task_worker_flash_writer(void* context) {
     do {
         CHECK_RESULT(update_task_parse_manifest(update_task));
 
-        /* Flash firmware DFU BEFORE radio stack install.
-         * When switching radio stack types (e.g. BLE Light→Full), FUS
-         * changes SRAM2 boundaries (SBRSA/SNBRSA).  The old firmware
-         * (still in flash) was built for the old stack's SRAM2 layout.
-         * After FUS reboots, the old firmware tries to access SRAM2
-         * regions now protected for C2 → BusFault → dead device.
-         * By flashing the new firmware first, the post-FUS-reboot boots
-         * into firmware built for the new stack's memory layout. */
-        if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
-            CHECK_RESULT(update_task_write_dfu(update_task));
-        }
-
         if(update_task->state.groups & UpdateTaskStageGroupRadio) {
             CHECK_RESULT(update_task_manage_radiostack(update_task));
         }
 
         if(update_task->state.groups & UpdateTaskStageGroupOptionBytes) {
             CHECK_RESULT(update_task_validate_optionbytes(update_task));
+        }
+
+        if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
+            CHECK_RESULT(update_task_write_dfu(update_task));
         }
 
         furi_hal_rtc_set_boot_mode(FuriHalRtcBootModePostUpdate);
