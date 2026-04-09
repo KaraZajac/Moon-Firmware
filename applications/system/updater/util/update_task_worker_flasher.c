@@ -226,17 +226,30 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
                 furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update));
         }
 
-        /* If C2Update flag is set here, it means FUS just completed a
-         * stack install (we set the flag right before FUS_FwUpgrade).
+        /* If C2Update flag is set AND SFSA is not at max, FUS just
+         * completed a stack install (we set the flag right before
+         * FUS_FwUpgrade, and FUS set SFSA for the new stack).
          * Do NOT boot C2 — the newly installed stack may crash C2 on
          * first boot, causing a rapid reset loop that bricks the device.
-         * Skip radio management entirely and let the normal firmware
-         * boot verify the stack later. */
+         * Skip radio management and let normal firmware boot verify.
+         *
+         * If C2Update is set but SFSA is 0xFF (max), the flag is stale
+         * from a previous failed attempt — proceed normally. */
         if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update)) {
-            FURI_LOG_W(TAG, "FUS install just completed, skipping C2 boot");
-            furi_hal_rtc_reset_flag(FuriHalRtcFlagC2Update);
-            success = true;
-            break;
+            uint32_t sfsa =
+                (READ_REG(FLASH->SFR) & FLASH_SFR_SFSA_Msk) >> FLASH_SFR_SFSA_Pos;
+            if(sfsa != 0xFF) {
+                FURI_LOG_W(
+                    TAG,
+                    "FUS install just completed (SFSA=0x%lX), skipping C2 boot",
+                    sfsa);
+                furi_hal_rtc_reset_flag(FuriHalRtcFlagC2Update);
+                success = true;
+                break;
+            } else {
+                FURI_LOG_W(TAG, "Stale C2Update flag (SFSA=0xFF), clearing");
+                furi_hal_rtc_reset_flag(FuriHalRtcFlagC2Update);
+            }
         }
 
         CHECK_RESULT(ble_glue_wait_for_c2_start(FURI_HAL_BT_C2_START_TIMEOUT));
