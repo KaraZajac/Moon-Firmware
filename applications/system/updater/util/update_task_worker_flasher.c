@@ -175,6 +175,13 @@ static bool update_task_write_stack(UpdateTask* update_task) {
             update_task->firmware_pre_flashed = true;
         }
 
+        /* Mark that FUS install is about to happen. On the next boot,
+         * the updater will see this flag and skip radio management
+         * entirely — do NOT boot C2, as the newly installed stack
+         * may crash C2 immediately (rapid reset loop = dead device).
+         * The stack will be verified on normal firmware boot instead. */
+        furi_hal_rtc_set_flag(FuriHalRtcFlagC2Update);
+
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
         update_task_set_progress(update_task, UpdateTaskStageProgress, 80);
@@ -217,6 +224,19 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
                 (sbrv << 2) + FLASH_BASE,
                 sfsa,
                 furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update));
+        }
+
+        /* If C2Update flag is set here, it means FUS just completed a
+         * stack install (we set the flag right before FUS_FwUpgrade).
+         * Do NOT boot C2 — the newly installed stack may crash C2 on
+         * first boot, causing a rapid reset loop that bricks the device.
+         * Skip radio management entirely and let the normal firmware
+         * boot verify the stack later. */
+        if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagC2Update)) {
+            FURI_LOG_W(TAG, "FUS install just completed, skipping C2 boot");
+            furi_hal_rtc_reset_flag(FuriHalRtcFlagC2Update);
+            success = true;
+            break;
         }
 
         CHECK_RESULT(ble_glue_wait_for_c2_start(FURI_HAL_BT_C2_START_TIMEOUT));
