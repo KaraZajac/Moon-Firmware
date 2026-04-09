@@ -23,7 +23,6 @@ struct SubGhzTxRx {
     SubGhzSpeakerState speaker_state;
     const SubGhzDevice* radio_device;
     SubGhzRadioDeviceType radio_device_type;
-    bool devices_inited;
 
     SubGhzTxRxNeedSaveCallback need_save_callback;
     void* need_save_context;

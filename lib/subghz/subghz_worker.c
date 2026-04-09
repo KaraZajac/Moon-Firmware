@@ -85,9 +85,8 @@ SubGhzWorker* subghz_worker_alloc(void) {
     instance->thread =
         furi_thread_alloc_ex("SubGhzWorker", 2048, subghz_worker_thread_callback, instance);
 
-    /* Stream buffer (~32KB) allocated lazily in _start() to keep heap
-     * free during app startup and menu navigation. */
-    instance->stream = NULL;
+    instance->stream =
+        furi_stream_buffer_alloc(sizeof(LevelDuration) * 4096, sizeof(LevelDuration));
 
     //setting default filter in us
     instance->filter_duration = 30;
@@ -98,9 +97,7 @@ SubGhzWorker* subghz_worker_alloc(void) {
 void subghz_worker_free(SubGhzWorker* instance) {
     furi_check(instance);
 
-    if(instance->stream) {
-        furi_stream_buffer_free(instance->stream);
-    }
+    furi_stream_buffer_free(instance->stream);
     furi_thread_free(instance->thread);
 
     free(instance);
@@ -127,12 +124,6 @@ void subghz_worker_start(SubGhzWorker* instance) {
     furi_check(instance);
     furi_check(!instance->running);
 
-    /* Allocate the ~32KB stream buffer on demand */
-    if(!instance->stream) {
-        instance->stream =
-            furi_stream_buffer_alloc(sizeof(LevelDuration) * 4096, sizeof(LevelDuration));
-    }
-
     instance->running = true;
 
     furi_thread_start(instance->thread);
@@ -145,12 +136,6 @@ void subghz_worker_stop(SubGhzWorker* instance) {
     instance->running = false;
 
     furi_thread_join(instance->thread);
-
-    /* Free the ~32KB stream buffer when not receiving */
-    if(instance->stream) {
-        furi_stream_buffer_free(instance->stream);
-        instance->stream = NULL;
-    }
 }
 
 bool subghz_worker_is_running(SubGhzWorker* instance) {

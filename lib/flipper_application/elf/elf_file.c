@@ -964,6 +964,23 @@ bool elf_file_open(ELFFile* elf, const char* path) {
     return true;
 }
 
+/** Compute a hash of all RAM section exec_addrs.
+ *  Used to detect when RAM sections land at different addresses across launches,
+ *  which invalidates XIP-cached code that contains relocated pointers to RAM. */
+static uint32_t elf_compute_ram_addr_hash(ELFFile* elf) {
+    uint32_t hash = 0x5A5A5A5A;
+    ELFSectionDict_it_t it;
+    for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
+        ELFSectionDict_next(it)) {
+        ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
+        if(!itref->value.xip && itref->value.data != NULL) {
+            hash ^= (uint32_t)(uintptr_t)itref->value.data;
+            hash = (hash << 7) | (hash >> 25); /* rotate to spread bits */
+        }
+    }
+    return hash;
+}
+
 static bool elf_section_is_xip_eligible(const ELFSection* section) {
     /* XIP-eligible: allocated, not writable, has size, and is not BSS (has file data) */
     if(!(section->sh_flags & SHF_ALLOC)) return false;
@@ -971,6 +988,85 @@ static bool elf_section_is_xip_eligible(const ELFSection* section) {
     if(section->size == 0) return false;
     if(section->file_offset == 0) return false; /* BSS or empty */
     return true;
+}
+
+/** Reset bump allocator, calculate XIP size, and assign flash addresses to
+ *  XIP-eligible sections.  Called from elf_setup_xip (fresh load or cache
+ *  invalidation) and from load_section_table when post-materialization
+ *  RAM address validation invalidates the cache. */
+static void elf_xip_assign_addresses(ELFFile* elf) {
+    elf->xip_region.next_free = elf->xip_region.data_start;
+    elf->xip_region.cache_valid = false;
+
+    /* Clear any stale XIP state on sections */
+    ELFSectionDict_it_t it;
+    for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
+        ELFSectionDict_next(it)) {
+        ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
+        if(itref->value.xip) {
+            itref->value.data = NULL;
+            itref->value.exec_addr = 0;
+            itref->value.xip = false;
+        }
+    }
+
+    /* Calculate total XIP size needed (with 8-byte alignment per section) */
+    size_t xip_total = 0;
+    for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
+        ELFSectionDict_next(it)) {
+        ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
+        if(elf_section_is_xip_eligible(&itref->value)) {
+            size_t aligned_size = (itref->value.size + 7) & ~(size_t)7;
+            xip_total += aligned_size;
+        }
+    }
+
+    if(xip_total == 0) {
+        FURI_LOG_D(TAG, "No XIP-eligible sections found");
+        xip_region_release(&elf->xip_region);
+        return;
+    }
+
+    if(xip_total > (XIP_REGION_MAX_SIZE - XIP_CACHE_HEADER_SIZE)) {
+        FURI_LOG_W(
+            TAG,
+            "XIP sections too large (%zu bytes), falling back to RAM",
+            xip_total);
+        xip_region_release(&elf->xip_region);
+        return;
+    }
+
+    /* Allocate flash addresses for each XIP-eligible section */
+    for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
+        ELFSectionDict_next(it)) {
+        ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
+        ELFSection* sec = &itref->value;
+
+        if(elf_section_is_xip_eligible(sec)) {
+            uint32_t flash_addr = xip_region_alloc(&elf->xip_region, sec->size, 8);
+            if(flash_addr == 0) {
+                FURI_LOG_E(TAG, "XIP alloc failed for '%s', falling back to RAM", itref->key);
+                xip_region_release(&elf->xip_region);
+                ELFSectionDict_it_t it2;
+                for(ELFSectionDict_it(it2, elf->sections); !ELFSectionDict_end_p(it2);
+                    ELFSectionDict_next(it2)) {
+                    ELFSectionDict_itref_t* itref2 = ELFSectionDict_ref(it2);
+                    itref2->value.xip = false;
+                }
+                return;
+            }
+            sec->exec_addr = flash_addr;
+            sec->xip = true;
+            FURI_LOG_I(
+                TAG,
+                "Section '%s' (%lu bytes) -> XIP 0x%08lX",
+                itref->key,
+                sec->size,
+                flash_addr);
+        }
+    }
+
+    FURI_LOG_I(TAG, "XIP setup: %zu bytes allocated in flash", xip_region_used(&elf->xip_region));
 }
 
 static void elf_setup_xip(ELFFile* elf) {
@@ -1070,89 +1166,10 @@ static void elf_setup_xip(ELFFile* elf) {
             FURI_LOG_I(TAG, "XIP cache hit — skipping flash erase/write");
             return;
         }
-        /* Cache invalidated during restore — clear any partially restored
-         * sections so the fresh allocation path doesn't see stale flash
-         * pointers in sec->data (which would cause elf_materialize_section
-         * to skip loading, leaving the section pointing at old data). */
-        FURI_LOG_I(TAG, "XIP cache invalidated, doing fresh load");
-        ELFSectionDict_it_t reset_it;
-        for(ELFSectionDict_it(reset_it, elf->sections); !ELFSectionDict_end_p(reset_it);
-            ELFSectionDict_next(reset_it)) {
-            ELFSectionDict_itref_t* ritref = ELFSectionDict_ref(reset_it);
-            if(ritref->value.xip) {
-                ritref->value.data = NULL;
-                ritref->value.exec_addr = 0;
-                ritref->value.xip = false;
-            }
-        }
+        FURI_LOG_I(TAG, "XIP cache invalidated during restore, doing fresh load");
     }
 
-    /* Reset bump allocator for fresh allocation */
-    elf->xip_region.next_free = elf->xip_region.data_start;
-    elf->xip_region.cache_valid = false;
-
-    /* Calculate total XIP size needed (with 8-byte alignment per section) */
-    size_t xip_total = 0;
-    ELFSectionDict_it_t it;
-    for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
-        ELFSectionDict_next(it)) {
-        ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
-        if(elf_section_is_xip_eligible(&itref->value)) {
-            size_t aligned_size = (itref->value.size + 7) & ~(size_t)7;
-            xip_total += aligned_size;
-        }
-    }
-
-    if(xip_total == 0) {
-        FURI_LOG_D(TAG, "No XIP-eligible sections found");
-        xip_region_release(&elf->xip_region);
-        return;
-    }
-
-    /* Check if everything fits (account for header reservation) */
-    if(xip_total > (XIP_REGION_MAX_SIZE - XIP_CACHE_HEADER_SIZE)) {
-        FURI_LOG_W(
-            TAG,
-            "XIP sections too large (%zu bytes), falling back to RAM",
-            xip_total);
-        xip_region_release(&elf->xip_region);
-        return;
-    }
-
-    /* Allocate flash addresses for each XIP-eligible section */
-    for(ELFSectionDict_it(it, elf->sections); !ELFSectionDict_end_p(it);
-        ELFSectionDict_next(it)) {
-        ELFSectionDict_itref_t* itref = ELFSectionDict_ref(it);
-        ELFSection* sec = &itref->value;
-
-        if(elf_section_is_xip_eligible(sec)) {
-            uint32_t flash_addr = xip_region_alloc(&elf->xip_region, sec->size, 8);
-            if(flash_addr == 0) {
-                FURI_LOG_E(TAG, "XIP alloc failed for '%s', falling back to RAM", itref->key);
-                xip_region_release(&elf->xip_region);
-                ELFSectionDict_it_t it2;
-                for(ELFSectionDict_it(it2, elf->sections); !ELFSectionDict_end_p(it2);
-                    ELFSectionDict_next(it2)) {
-                    ELFSectionDict_itref_t* itref2 = ELFSectionDict_ref(it2);
-                    itref2->value.xip = false;
-                }
-                return;
-            }
-            sec->exec_addr = flash_addr;
-            sec->xip = true;
-            FURI_LOG_I(
-                TAG,
-                "Section '%s' (%lu bytes) -> XIP 0x%08lX",
-                itref->key,
-                sec->size,
-                flash_addr);
-        } else {
-            sec->exec_addr = (Elf32_Addr)sec->data;
-            sec->xip = false;
-        }
-    }
-
-    FURI_LOG_I(TAG, "XIP setup: %zu bytes allocated in flash", xip_region_used(&elf->xip_region));
+    elf_xip_assign_addresses(elf);
 }
 
 ElfLoadSectionTableResult elf_file_load_section_table(ELFFile* elf) {
@@ -1223,6 +1240,26 @@ ElfLoadSectionTableResult elf_file_load_section_table(ELFFile* elf) {
                         return ElfLoadSectionTableResultError;
                     }
                     sec->exec_addr = (Elf32_Addr)sec->data;
+                }
+            }
+
+            /* Validate RAM addresses against XIP cache.
+             * XIP code in flash contains relocated pointers to RAM section
+             * addresses from the first launch.  If RAM sections land at
+             * different addresses now, those pointers are stale and the
+             * app will crash.  Invalidate the cache and force a full
+             * re-relocation + flash write. */
+            if(elf->xip_region.active && elf->xip_region.cache_valid) {
+                uint32_t current_hash = elf_compute_ram_addr_hash(elf);
+                const XipCacheHeader* hdr = xip_cache_get_header(&elf->xip_region);
+                if(!hdr || hdr->ram_addr_hash != current_hash) {
+                    FURI_LOG_W(
+                        TAG,
+                        "XIP cache invalidated: RAM addresses changed "
+                        "(cached=%08lX, current=%08lX)",
+                        hdr ? hdr->ram_addr_hash : 0,
+                        current_hash);
+                    elf_xip_assign_addresses(elf);
                 }
             }
 
@@ -1858,6 +1895,7 @@ ELFFileLoadStatus elf_file_load_sections(ELFFile* elf) {
                     }
                 }
                 cache_hdr.section_count = sec_idx;
+                cache_hdr.ram_addr_hash = elf_compute_ram_addr_hash(elf);
 
                 if(!xip_cache_commit_header(&elf->xip_region, &cache_hdr)) {
                     FURI_LOG_E(TAG, "XIP cache header write failed — app will re-flash on next launch");

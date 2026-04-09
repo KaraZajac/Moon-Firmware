@@ -4,12 +4,6 @@
 
 #include <m-array.h>
 
-#define TAG "SubGhzReceiver"
-
-/* Minimum free heap (bytes) to keep as headroom during decoder allocation.
- * If the heap drops below this, remaining decoders are skipped. */
-#define SUBGHZ_RECEIVER_ALLOC_MIN_FREE_HEAP 4096
-
 typedef struct {
     SubGhzProtocolEncoderBase* base;
 } SubGhzReceiverSlot;
@@ -32,32 +26,15 @@ SubGhzReceiver* subghz_receiver_alloc_init(SubGhzEnvironment* environment) {
     const SubGhzProtocolRegistry* protocol_registry_items =
         subghz_environment_get_protocol_registry(environment);
 
-    size_t total = subghz_protocol_registry_count(protocol_registry_items);
-    size_t loaded = 0;
-
-    FURI_LOG_I(TAG, "Allocating %zu decoders, heap free: %zu", total, memmgr_get_free_heap());
-
-    for(size_t i = 0; i < total; ++i) {
+    for(size_t i = 0; i < subghz_protocol_registry_count(protocol_registry_items); ++i) {
         const SubGhzProtocol* protocol =
             subghz_protocol_registry_get_by_index(protocol_registry_items, i);
 
         if(protocol->decoder && protocol->decoder->alloc) {
-            size_t free_heap = memmgr_get_free_heap();
-            if(free_heap < SUBGHZ_RECEIVER_ALLOC_MIN_FREE_HEAP) {
-                FURI_LOG_W(
-                    TAG,
-                    "Heap low (%zu free), skipping %zu remaining decoders",
-                    free_heap,
-                    total - i);
-                break;
-            }
             SubGhzReceiverSlot* slot = SubGhzReceiverSlotArray_push_new(instance->slots);
             slot->base = protocol->decoder->alloc(environment);
-            loaded++;
         }
     }
-
-    FURI_LOG_I(TAG, "Loaded %zu/%zu decoders, heap free: %zu", loaded, total, memmgr_get_free_heap());
 
     instance->callback = NULL;
     instance->context = NULL;

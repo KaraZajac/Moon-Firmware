@@ -39,6 +39,10 @@ typedef struct {
     uint32_t file_crc32; /**< CRC32 of FAP file (definitive validation) */
     uint32_t api_version; /**< Firmware API version (major << 16 | minor) */
     uint32_t section_count; /**< Number of cached sections */
+    uint32_t ram_addr_hash; /**< Hash of RAM section exec_addrs at cache time;
+                                 if RAM sections land at different addresses on
+                                 next launch the cache must be invalidated because
+                                 XIP code contains relocated pointers to those addrs */
     XipCacheSectionEntry sections[XIP_CACHE_MAX_SECTIONS];
 } XipCacheHeader;
 

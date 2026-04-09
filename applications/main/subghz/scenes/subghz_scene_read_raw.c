@@ -72,16 +72,6 @@ void subghz_scene_read_raw_callback_end_tx(void* context) {
 
 void subghz_scene_read_raw_on_enter(void* context) {
     SubGhz* subghz = context;
-
-    /* Lazy-allocate the ReadRAW view on first use */
-    if(!subghz->subghz_read_raw) {
-        subghz->subghz_read_raw = subghz_read_raw_alloc(subghz->raw_send_only);
-        view_dispatcher_add_view(
-            subghz->view_dispatcher,
-            SubGhzViewIdReadRAW,
-            subghz_read_raw_get_view(subghz->subghz_read_raw));
-    }
-
     FuriString* file_name = furi_string_alloc();
 
     float threshold_rssi = subghz_threshold_rssi_get(subghz->threshold_rssi);
