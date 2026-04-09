@@ -981,15 +981,21 @@ static void elf_setup_xip(ELFFile* elf) {
         return;
     }
 
-    /* Check if all sections fit in RAM — if so, skip XIP entirely.
-     * RAM execution is faster and avoids flash wear. */
-    size_t total_alloc_size = 0;
+    /* Check if all remaining sections fit in RAM — if so, skip XIP entirely.
+     * RAM execution is faster and avoids flash wear.
+     *
+     * Only count sections that still need allocation (data == NULL); BSS is
+     * pre-allocated earlier.  Use a generous margin because sections are
+     * allocated sequentially: each allocation adds allocator overhead (~32B),
+     * alignment padding, and elf_materialize_section adds a 1KB safety check
+     * per section.  With 5+ sections this easily exceeds 4KB. */
+    size_t remaining_alloc_size = 0;
     ELFSectionDict_it_t ram_it;
     for(ELFSectionDict_it(ram_it, elf->sections); !ELFSectionDict_end_p(ram_it);
         ELFSectionDict_next(ram_it)) {
         ELFSectionDict_itref_t* itref = ELFSectionDict_ref(ram_it);
-        if(itref->value.sh_flags & SHF_ALLOC) {
-            total_alloc_size += itref->value.size;
+        if((itref->value.sh_flags & SHF_ALLOC) && itref->value.data == NULL) {
+            remaining_alloc_size += itref->value.size;
         }
     }
 
@@ -997,15 +1003,13 @@ static void elf_setup_xip(ELFFile* elf) {
     size_t max_block = memmgr_heap_get_max_free_block();
     furi_kernel_unlock();
 
-    /* Use generous margin: sections are loaded sequentially but we need room
-     * for all of them plus relocations, caches, and app runtime. */
-    size_t ram_needed = total_alloc_size + 4096; /* 4KB safety margin */
+    size_t ram_needed = remaining_alloc_size + 32768; /* 32KB margin for fragmentation */
 
     if(ram_needed <= max_block) {
         FURI_LOG_I(
             TAG,
             "App fits in RAM (%zu bytes, %zu available) — skipping XIP",
-            total_alloc_size,
+            remaining_alloc_size,
             max_block);
         /* Don't initialize XIP — all sections will be loaded to RAM */
         memset(&elf->xip_region, 0, sizeof(XipRegion));
@@ -1066,8 +1070,21 @@ static void elf_setup_xip(ELFFile* elf) {
             FURI_LOG_I(TAG, "XIP cache hit — skipping flash erase/write");
             return;
         }
-        /* Cache invalidated during restore — fall through to fresh allocation */
+        /* Cache invalidated during restore — clear any partially restored
+         * sections so the fresh allocation path doesn't see stale flash
+         * pointers in sec->data (which would cause elf_materialize_section
+         * to skip loading, leaving the section pointing at old data). */
         FURI_LOG_I(TAG, "XIP cache invalidated, doing fresh load");
+        ELFSectionDict_it_t reset_it;
+        for(ELFSectionDict_it(reset_it, elf->sections); !ELFSectionDict_end_p(reset_it);
+            ELFSectionDict_next(reset_it)) {
+            ELFSectionDict_itref_t* ritref = ELFSectionDict_ref(reset_it);
+            if(ritref->value.xip) {
+                ritref->value.data = NULL;
+                ritref->value.exec_addr = 0;
+                ritref->value.xip = false;
+            }
+        }
     }
 
     /* Reset bump allocator for fresh allocation */

@@ -149,6 +149,31 @@ static bool update_task_write_stack(UpdateTask* update_task) {
         CHECK_RESULT(update_task_write_stack_data(update_task));
         update_task_set_progress(update_task, UpdateTaskStageRadioInstall, 10);
 
+        /* Log flash OB state before FUS install for diagnostics */
+        {
+            uint32_t srrvr = READ_REG(FLASH->SRRVR);
+            uint32_t sbrv = srrvr & FLASH_SRRVR_SBRV_Msk;
+            uint32_t sfsa =
+                (READ_REG(FLASH->SFR) & FLASH_SFR_SFSA_Msk) >> FLASH_SFR_SFSA_Pos;
+            FURI_LOG_E(
+                TAG,
+                "Pre-install: radio_addr=0x%08lX SBRV=0x%lX SFSA=0x%lX",
+                manifest->radio_address,
+                sbrv,
+                sfsa);
+        }
+
+        /* Flash firmware DFU BEFORE FUS_FwUpgrade.  FUS will reboot the
+         * system after installing the stack, changing SRAM2 boundaries
+         * (SBRSA/SNBRSA).  The old firmware (e.g. Momentum, built for
+         * BLE Light) can't handle the new SRAM2 layout → BusFault on
+         * boot → dead device.  Writing our firmware first ensures the
+         * post-FUS-reboot boots into firmware built for the new stack. */
+        if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
+            FURI_LOG_W(TAG, "Pre-flashing firmware before FUS install");
+            CHECK_RESULT(update_task_write_dfu(update_task));
+        }
+
         CHECK_RESULT(
             ble_glue_fus_stack_install(manifest->radio_address, 0) != BleGlueCommandResultError);
         update_task_set_progress(update_task, UpdateTaskStageProgress, 80);
@@ -240,13 +265,18 @@ static bool update_task_manage_radiostack(UpdateTask* update_task) {
                     FURI_LOG_W(TAG, "Forcing stack removal (match)");
                     CHECK_RESULT(update_task_remove_stack(update_task));
                 } else {
-                    /* We might just had the stack installed.
-                     * Let's start it up to check its version */
-                    FURI_LOG_W(TAG, "Starting stack to check full version");
-                    update_task_set_progress(update_task, UpdateTaskStageProgress, 50);
-                    CHECK_RESULT(furi_hal_bt_ensure_c2_mode(BleGlueC2ModeStack));
-                    /* ...system will restart here. */
-                    update_task_wait_for_restart(update_task);
+                    /* Stack was just installed by FUS.  Version matches.
+                     * Do NOT switch to Stack mode to verify the type —
+                     * SHCI_C2_FUS_StartWs() can crash C2 if SBRV hasn't
+                     * settled yet after a stack type change (Light→Full).
+                     * C2 jumps to a stale SBRV address, crashes, and M4
+                     * hangs in IPCC timeout → furi_crash → bricked device.
+                     * Instead, trust the FUS install and proceed.  The
+                     * firmware will verify the stack type on normal boot. */
+                    FURI_LOG_W(TAG, "Stack installed, skipping StartWs verification");
+                    furi_hal_rtc_reset_flag(FuriHalRtcFlagC2Update);
+                    success = true;
+                    break;
                 }
             } else {
                 if(stack_missing) {
