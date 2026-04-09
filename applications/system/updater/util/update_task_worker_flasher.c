@@ -387,8 +387,7 @@ int32_t update_task_worker_flash_writer(void* context) {
             CHECK_RESULT(update_task_validate_optionbytes(update_task));
         }
 
-        if((update_task->state.groups & UpdateTaskStageGroupFirmware) &&
-           !update_task->firmware_pre_flashed) {
+        if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
             CHECK_RESULT(update_task_write_dfu(update_task));
         }
 
