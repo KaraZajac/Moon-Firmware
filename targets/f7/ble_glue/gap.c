@@ -42,15 +42,22 @@ typedef struct {
     bool enable_adv;
     bool is_secure;
     bool is_central;
+    bool was_advertising;
     uint8_t negotiation_round;
     GapScanCallback scan_callback;
     void* scan_context;
+    FuriTimer* scan_timer;
+    GapScanParams pending_scan_params;
+    volatile bool scan_result;
+    FuriSemaphore* scan_semaphore;
 } Gap;
 
 typedef enum {
     GapCommandAdvFast,
     GapCommandAdvLowPower,
     GapCommandAdvStop,
+    GapCommandScanStart,
+    GapCommandScanStop,
     GapCommandKillThread,
 } GapCommand;
 
@@ -58,6 +65,7 @@ static Gap* gap = NULL;
 
 static void gap_advertise_start(GapState new_state);
 static int32_t gap_app(void* context);
+static void gap_scan_timer_callback(void* context);
 
 static void gap_verify_connection_parameters(Gap* gap) {
     furi_check(gap);
@@ -144,8 +152,10 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         gap->is_central = false;
         gap->negotiation_round = 0;
         furi_delay_us(666 + 666);
-        /* Only restart advertising if we were acting as peripheral */
-        if(!was_central && gap->enable_adv) {
+        /* Restart advertising: always for peripheral, or for central if we
+         * had stopped advertising to scan/connect */
+        if(gap->enable_adv && (!was_central || gap->was_advertising)) {
+            if(was_central) gap->was_advertising = false;
             gap_advertise_start(GapStateAdvFast);
         }
         GapEvent event = {.type = GapEventTypeDisconnected};
@@ -349,6 +359,22 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             }
             break;
         }
+
+        case ACI_GAP_PROC_COMPLETE_VSEVT_CODE: {
+            aci_gap_proc_complete_event_rp0* proc =
+                (aci_gap_proc_complete_event_rp0*)blue_evt->data;
+            if(proc->Procedure_Code == GAP_OBSERVATION_PROC) {
+                FURI_LOG_I(TAG, "Observation procedure complete");
+                if(gap->state == GapStateScanning) {
+                    gap->state = GapStateIdle;
+                    if(gap->was_advertising && gap->enable_adv) {
+                        gap->was_advertising = false;
+                        gap_advertise_start(GapStateAdvFast);
+                    }
+                }
+            }
+            break;
+        }
         }
     default:
         break;
@@ -411,7 +437,7 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
     char* name = gap->service.adv_name + 1;
     uint8_t gap_role = GAP_PERIPHERAL_ROLE;
     if(furi_hal_bt_get_radio_stack() == FuriHalBtStackFull) {
-        gap_role |= GAP_CENTRAL_ROLE;
+        gap_role |= GAP_CENTRAL_ROLE | GAP_OBSERVER_ROLE;
     }
     status = aci_gap_init(
         gap_role,
@@ -623,6 +649,8 @@ bool gap_init(
     gap->config = config;
     // Create advertising timer
     gap->advertise_timer = furi_timer_alloc(gap_advetise_timer_callback, FuriTimerTypeOnce, NULL);
+    gap->scan_timer = furi_timer_alloc(gap_scan_timer_callback, FuriTimerTypeOnce, NULL);
+    gap->scan_semaphore = furi_semaphore_alloc(1, 0);
     // Initialization of GATT & GAP layer
     gap->service.adv_name = config->adv_name;
     gap_init_svc(gap, root_keys);
@@ -700,6 +728,10 @@ void gap_thread_stop(void) {
         gap->command_queue = NULL;
         furi_timer_free(gap->advertise_timer);
         gap->advertise_timer = NULL;
+        furi_timer_free(gap->scan_timer);
+        gap->scan_timer = NULL;
+        furi_semaphore_free(gap->scan_semaphore);
+        gap->scan_semaphore = NULL;
 
         ble_event_dispatcher_reset();
         free(gap);
@@ -721,11 +753,66 @@ static int32_t gap_app(void* context) {
             break;
         }
         if(command == GapCommandAdvFast) {
-            gap_advertise_start(GapStateAdvFast);
+            /* Only start advertising if state allows it (not scanning/connecting/connected) */
+            if(gap->state == GapStateIdle || gap->state == GapStateStartingAdv ||
+               gap->state == GapStateAdvFast || gap->state == GapStateAdvLowPower) {
+                gap_advertise_start(GapStateAdvFast);
+            }
         } else if(command == GapCommandAdvLowPower) {
-            gap_advertise_start(GapStateAdvLowPower);
+            if(gap->state == GapStateAdvFast || gap->state == GapStateAdvLowPower ||
+               gap->state == GapStateStartingAdv) {
+                gap_advertise_start(GapStateAdvLowPower);
+            }
         } else if(command == GapCommandAdvStop) {
             gap_advertise_stop();
+        } else if(command == GapCommandScanStart) {
+            /* Stop advertising if active */
+            if(gap->state == GapStateAdvFast || gap->state == GapStateAdvLowPower ||
+               gap->state == GapStateStartingAdv) {
+                FURI_LOG_I(TAG, "Stopping advertising for scan");
+                furi_timer_stop(gap->advertise_timer);
+                aci_gap_set_non_discoverable();
+                gap->was_advertising = true;
+                gap->state = GapStateIdle;
+            }
+            bool ok = false;
+            if(gap->state == GapStateIdle) {
+                uint16_t interval = gap->pending_scan_params.interval;
+                uint16_t window = gap->pending_scan_params.window;
+                uint8_t scan_type = gap->pending_scan_params.active ? 1 : 0;
+                tBleStatus status = aci_gap_start_observation_proc(
+                    interval, window, scan_type, 0x00, 0, 0x00);
+                if(status == BLE_STATUS_SUCCESS) {
+                    gap->state = GapStateScanning;
+                    if(gap->pending_scan_params.timeout_ms > 0) {
+                        furi_timer_start(gap->scan_timer,
+                            gap->pending_scan_params.timeout_ms);
+                    }
+                    FURI_LOG_I(TAG, "Scanning started (interval=%d window=%d active=%d timeout=%d)",
+                        interval, window, scan_type, gap->pending_scan_params.timeout_ms);
+                    ok = true;
+                } else {
+                    FURI_LOG_E(TAG, "Start scanning failed: 0x%02X", status);
+                    if(gap->was_advertising && gap->enable_adv) {
+                        gap->was_advertising = false;
+                        gap_advertise_start(GapStateAdvFast);
+                    }
+                }
+            } else {
+                FURI_LOG_E(TAG, "Cannot scan in state %d", gap->state);
+            }
+            gap->scan_result = ok;
+            furi_semaphore_release(gap->scan_semaphore);
+        } else if(command == GapCommandScanStop) {
+            if(gap->state == GapStateScanning) {
+                aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
+                gap->state = GapStateIdle;
+                FURI_LOG_I(TAG, "Scan timeout");
+                if(gap->was_advertising && gap->enable_adv) {
+                    gap->was_advertising = false;
+                    gap_advertise_start(GapStateAdvFast);
+                }
+            }
         }
         furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
     }
@@ -743,6 +830,12 @@ void gap_emit_ble_beacon_status_event(bool active) {
  * Scanning (observer role)
  */
 
+static void gap_scan_timer_callback(void* context) {
+    UNUSED(context);
+    GapCommand command = GapCommandScanStop;
+    furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
+}
+
 void gap_set_scan_callback(GapScanCallback callback, void* context) {
     furi_check(gap);
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
@@ -757,30 +850,16 @@ bool gap_start_scanning(const GapScanParams* params) {
 
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
-    if(gap->state != GapStateIdle) {
-        FURI_LOG_E(TAG, "Cannot start scanning in state %d", gap->state);
-        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
-        return false;
-    }
-
-    uint16_t interval = params->interval;
-    uint16_t window = params->window;
-    uint8_t scan_type = params->active ? 1 : 0;
-    uint8_t filter_dup = 0;
-
-    tBleStatus status = aci_gap_start_observation_proc(
-        interval, window, scan_type, 0x00 /* public addr */, filter_dup, 0x00 /* accept all */);
-
-    if(status == BLE_STATUS_SUCCESS) {
-        gap->state = GapStateScanning;
-        FURI_LOG_I(TAG, "Scanning started (interval=%d window=%d active=%d)",
-            interval, window, scan_type);
-    } else {
-        FURI_LOG_E(TAG, "Start scanning failed: 0x%02X", status);
-    }
-
+    /* Queue scan start for the gap_app thread which handles the full
+     * advertising-stop → observation-start transition. */
+    gap->pending_scan_params = *params;
+    GapCommand cmd = GapCommandScanStart;
+    furi_check(furi_message_queue_put(gap->command_queue, &cmd, 0) == FuriStatusOk);
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
-    return status == BLE_STATUS_SUCCESS;
+
+    /* Block until gap_app processes the scan start */
+    furi_check(furi_semaphore_acquire(gap->scan_semaphore, 5000) == FuriStatusOk);
+    return gap->scan_result;
 }
 
 void gap_stop_scanning(void) {
@@ -788,11 +867,20 @@ void gap_stop_scanning(void) {
 
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
+    furi_timer_stop(gap->scan_timer);
     aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
     if(gap->state == GapStateScanning) {
         gap->state = GapStateIdle;
     }
     FURI_LOG_I(TAG, "Scanning stopped");
+
+    /* Restart advertising if we stopped it for scanning */
+    if(gap->was_advertising && gap->enable_adv) {
+        gap->was_advertising = false;
+        gap->state = GapStateStartingAdv;
+        GapCommand command = GapCommandAdvFast;
+        furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
+    }
 
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
 }
@@ -807,6 +895,16 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
 
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
+    /* Stop advertising if active so we can connect as central */
+    if(gap->state == GapStateAdvFast || gap->state == GapStateAdvLowPower ||
+       gap->state == GapStateStartingAdv) {
+        FURI_LOG_I(TAG, "Stopping advertising for connect");
+        furi_timer_stop(gap->advertise_timer);
+        aci_gap_set_non_discoverable();
+        gap->was_advertising = true;
+        gap->state = GapStateIdle;
+    }
+
     if(gap->state != GapStateIdle && gap->state != GapStateScanning) {
         FURI_LOG_E(TAG, "Cannot connect in state %d", gap->state);
         furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
@@ -815,22 +913,35 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
 
     /* Stop scanning before connecting */
     if(gap->state == GapStateScanning) {
+        furi_timer_stop(gap->scan_timer);
         aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
         gap->state = GapStateIdle;
     }
 
-    tBleStatus status = aci_gap_create_connection(
-        0x0060, /* scan interval 60ms */
-        0x0030, /* scan window 30ms */
-        address_type,
-        address,
-        0x00, /* public own address */
-        0x0028, /* conn interval min 50ms */
-        0x0038, /* conn interval max 70ms */
-        0x0000, /* slave latency */
-        0x03E8, /* supervision timeout 10s */
-        0x0010, /* min CE length */
-        0x0020 /* max CE length */);
+    /* Retry connection if BLE controller is still busy after advertising stop */
+    tBleStatus status = BLE_STATUS_FAILED;
+    for(int retry = 0; retry < 10; retry++) {
+        if(retry > 0) {
+            furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+            furi_delay_ms(25);
+            furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+            if(gap->state != GapStateIdle) break;
+        }
+        status = aci_gap_create_connection(
+            0x0060, /* scan interval 60ms */
+            0x0030, /* scan window 30ms */
+            address_type,
+            address,
+            0x00, /* public own address */
+            0x0028, /* conn interval min 50ms */
+            0x0038, /* conn interval max 70ms */
+            0x0000, /* slave latency */
+            0x03E8, /* supervision timeout 10s */
+            0x0010, /* min CE length */
+            0x0020 /* max CE length */);
+        if(status == BLE_STATUS_SUCCESS) break;
+        FURI_LOG_W(TAG, "Connect retry %d (status 0x%02X)", retry + 1, status);
+    }
 
     if(status == BLE_STATUS_SUCCESS) {
         gap->state = GapStateConnecting;
