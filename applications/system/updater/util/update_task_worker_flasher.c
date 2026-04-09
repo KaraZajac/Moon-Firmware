@@ -172,6 +172,7 @@ static bool update_task_write_stack(UpdateTask* update_task) {
         if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
             FURI_LOG_W(TAG, "Pre-flashing firmware before FUS install");
             CHECK_RESULT(update_task_write_dfu(update_task));
+            update_task->firmware_pre_flashed = true;
         }
 
         CHECK_RESULT(
@@ -386,7 +387,8 @@ int32_t update_task_worker_flash_writer(void* context) {
             CHECK_RESULT(update_task_validate_optionbytes(update_task));
         }
 
-        if(update_task->state.groups & UpdateTaskStageGroupFirmware) {
+        if((update_task->state.groups & UpdateTaskStageGroupFirmware) &&
+           !update_task->firmware_pre_flashed) {
             CHECK_RESULT(update_task_write_dfu(update_task));
         }
 
