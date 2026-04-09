@@ -126,9 +126,9 @@ SECTIONS {
     ._sram2a_start          : { . = ALIGN(4); __sram2a_start__ = .; } >RAM2A
     MAPPING_TABLE (NOLOAD)  : { *(MAPPING_TABLE) } >RAM2A
     ._sram2a_free           : { . = ALIGN(4); __sram2a_free__ = .; } >RAM2A
-    ._sram2b_start          : { . = ALIGN(4); __sram2b_start__ = .; } >RAM2B
     MB_MEM1 (NOLOAD)        : { *(MB_MEM1) } >RAM2B
     MB_MEM2 (NOLOAD)        : { _sMB_MEM2 = . ; *(MB_MEM2) ; _eMB_MEM2 = . ; } >RAM2B
+    ._sram2b_start          : { . = ALIGN(4); __sram2b_start__ = .; } >RAM2B
 
     /* Default debug-related rules from ld */
 
