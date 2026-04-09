@@ -58,10 +58,9 @@ COPRO_CUBE_VERSION = "1.20.0"
 
 COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
-# BLE Full Extended stack — central/scanning, extended advertising,
-# GATT client, 8 connections. 47 flash pages, 2KB SRAM2A + 10KB SRAM2B.
-COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_extended_fw.bin"
-COPRO_STACK_TYPE = "ble_full_ext_adv"
+# BLE Full stack — central/scanning, GATT client, 8 connections.
+COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_fw.bin"
+COPRO_STACK_TYPE = "ble_full"
 
 # Leave 0 to let scripts automatically calculate it
 COPRO_STACK_ADDR = "0x0"

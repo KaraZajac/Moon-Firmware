@@ -8,7 +8,7 @@ _stack_size = 0x400; /* required amount of stack */
 MEMORY {
     FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 1024K
     RAM1  (xrw) : ORIGIN = 0x20000008, LENGTH = 0x2FFF8
-    RAM2A (xrw) : ORIGIN = 0x20030000, LENGTH = 2K
+    RAM2A (xrw) : ORIGIN = 0x20030000, LENGTH = 10K
     RAM2B (xrw) : ORIGIN = 0x20038000, LENGTH = 10K
 }
 
@@ -127,9 +127,9 @@ SECTIONS {
     .ARM.attributes 0       : { *(.ARM.attributes) }
     ._sram2a_start          : { . = ALIGN(4); __sram2a_start__ = .; } >RAM2A
     MAPPING_TABLE (NOLOAD)  : { *(MAPPING_TABLE) } >RAM2A
+    MB_MEM1 (NOLOAD)        : { *(MB_MEM1) } >RAM2A
+    MB_MEM2 (NOLOAD)        : { _sMB_MEM2 = . ; *(MB_MEM2) ; _eMB_MEM2 = . ; } >RAM2A
     ._sram2a_free           : { . = ALIGN(4); __sram2a_free__ = .; } >RAM2A
-    MB_MEM1 (NOLOAD)        : { *(MB_MEM1) } >RAM2B
-    MB_MEM2 (NOLOAD)        : { _sMB_MEM2 = . ; *(MB_MEM2) ; _eMB_MEM2 = . ; } >RAM2B
     ._sram2b_start          : { . = ALIGN(4); __sram2b_start__ = .; } >RAM2B
 
     /* Default debug-related rules from ld */
