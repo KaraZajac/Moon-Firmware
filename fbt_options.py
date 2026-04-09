@@ -4,7 +4,7 @@ import os
 
 # For more details on these options, run 'fbt -h'
 
-FIRMWARE_ORIGIN = "Bloodmoon"
+FIRMWARE_ORIGIN = "Moon"
 
 # Default hardware target
 TARGET_HW = 7
@@ -30,16 +30,16 @@ if not os.environ.get("DIST_SUFFIX"):
         )
 
     try:
-        # For tags, dist name is just the tag name: bm-(ver)
+        # For tags, dist name is just the tag name: moon-(ver)
         DIST_SUFFIX = git("describe", "--tags", "--abbrev=0", "--exact-match")
     except Exception:
-        # If not a tag, dist name is: bm-(branch)-(commmit)
-        branch_name = git("rev-parse", "--abbrev-ref", "HEAD").removeprefix("bm-")
+        # If not a tag, dist name is: moon-(branch)-(commmit)
+        branch_name = git("rev-parse", "--abbrev-ref", "HEAD").removeprefix("moon-")
         commit_sha = git("rev-parse", "HEAD")[:8]
-        DIST_SUFFIX = f"bm-{branch_name}-{commit_sha}"
+        DIST_SUFFIX = f"moon-{branch_name}-{commit_sha}"
     # Dist name is only for naming of output files
     DIST_SUFFIX = DIST_SUFFIX.replace("/", "-")
-    # Instead, FW version uses tag name (bm-xxx), or "bm-dev" if not a tag (see scripts/version.py)
+    # Instead, FW version uses tag name (moon-xxx), or "moon-dev" if not a tag (see scripts/version.py)
     # You can get commit and branch info in firmware with appropriate version_get_*() calls
 
 # Skip external apps by default

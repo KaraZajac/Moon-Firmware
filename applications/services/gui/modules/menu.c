@@ -49,8 +49,8 @@ static void menu_process_ok(Menu* menu);
 static void menu_get_name(MenuItem* item, FuriString* name, bool shorter) {
     furi_string_set(name, item->label);
     if(shorter) {
-        if(!furi_string_cmp(name, "Bloodmoon")) {
-            furi_string_set(name, "BM");
+        if(!furi_string_cmp(name, "Moon")) {
+            furi_string_set(name, "Moon");
             return;
         } else if(!furi_string_cmp(name, "125 kHz RFID")) {
             furi_string_set(name, "RFID");
@@ -386,7 +386,7 @@ static void menu_draw_callback(Canvas* canvas, void* _model) {
 
             break;
         }
-        case MenuStyleMNTM: {
+        case MenuStyleMOON: {
             canvas_set_font(canvas, FontPrimary);
             canvas_draw_icon(canvas, 62, 4, &I_Release_arrow_18x15);
             canvas_draw_line(canvas, 5, 15, 59, 15);
@@ -822,7 +822,7 @@ static void menu_process_up(Menu* menu) {
 
             switch(momentum_settings.menu_style) {
             case MenuStyleList:
-            case MenuStyleMNTM:
+            case MenuStyleMOON:
                 if(position > 0) {
                     position--;
                 } else {
@@ -864,7 +864,7 @@ static void menu_process_down(Menu* menu) {
 
             switch(momentum_settings.menu_style) {
             case MenuStyleList:
-            case MenuStyleMNTM:
+            case MenuStyleMOON:
                 if(position < count - 1) {
                     position++;
                 } else {

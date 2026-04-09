@@ -270,6 +270,8 @@ SubGhz* subghz_alloc(bool alloc_for_tx_only) {
         subghz->gps = subghz_gps_plugin_init(subghz->last_settings->gps_baudrate);
     }
 
+    FURI_LOG_I(TAG, "subghz_alloc complete, heap free: %zu", memmgr_get_free_heap());
+
     return subghz;
 }
 

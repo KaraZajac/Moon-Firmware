@@ -23,7 +23,23 @@ static void subghz_txrx_radio_device_power_off(SubGhzTxRx* instance) {
     furi_record_close(RECORD_POWER);
 }
 
+/** Initialize radio device registry and probe for external CC1101.
+ *  Called lazily on first radio operation to avoid plugin-load freeze
+ *  when the main app is XIP-cached. */
+static void subghz_txrx_lazy_devices_init(SubGhzTxRx* instance) {
+    if(instance->devices_inited) return;
+    instance->devices_inited = true;
+
+    FURI_LOG_I(TAG, "Lazy device init, heap free: %zu", memmgr_get_free_heap());
+    subghz_devices_init();
+    instance->radio_device_type = SubGhzRadioDeviceTypeInternal;
+    instance->radio_device_type =
+        subghz_txrx_radio_device_set(instance, SubGhzRadioDeviceTypeExternalCC1101);
+    FURI_LOG_I(TAG, "Device init done, heap free: %zu", memmgr_get_free_heap());
+}
+
 SubGhzTxRx* subghz_txrx_alloc(void) {
+    FURI_LOG_I(TAG, "TxRx alloc start, heap free: %zu", memmgr_get_free_heap());
     SubGhzTxRx* instance = malloc(sizeof(SubGhzTxRx));
     instance->setting = subghz_setting_alloc();
     subghz_setting_load(instance->setting, EXT_PATH("subghz/assets/setting_user"));
@@ -51,7 +67,9 @@ SubGhzTxRx* subghz_txrx_alloc(void) {
         instance->environment, SUBGHZ_NICE_FLOR_S_DIR_NAME);
     subghz_environment_set_protocol_registry(
         instance->environment, (void*)&subghz_protocol_registry);
+    FURI_LOG_I(TAG, "Pre-receiver alloc, heap free: %zu", memmgr_get_free_heap());
     instance->receiver = subghz_receiver_alloc_init(instance->environment);
+    FURI_LOG_I(TAG, "Post-receiver alloc, heap free: %zu", memmgr_get_free_heap());
 
     subghz_worker_set_overrun_callback(
         instance->worker, (SubGhzWorkerOverrunCallback)subghz_receiver_reset);
@@ -59,11 +77,12 @@ SubGhzTxRx* subghz_txrx_alloc(void) {
         instance->worker, (SubGhzWorkerPairCallback)subghz_receiver_decode);
     subghz_worker_set_context(instance->worker, instance->receiver);
 
-    //set default device External
-    subghz_devices_init();
+    /* Defer radio device + plugin loading until first radio operation.
+     * The CC1101 ext plugin load freezes on XIP cache-hit launches,
+     * so we avoid it during startup. */
+    instance->radio_device = NULL;
     instance->radio_device_type = SubGhzRadioDeviceTypeInternal;
-    instance->radio_device_type =
-        subghz_txrx_radio_device_set(instance, SubGhzRadioDeviceTypeExternalCC1101);
+    instance->devices_inited = false;
 
     return instance;
 }
@@ -71,12 +90,13 @@ SubGhzTxRx* subghz_txrx_alloc(void) {
 void subghz_txrx_free(SubGhzTxRx* instance) {
     furi_assert(instance);
 
-    if(instance->radio_device_type != SubGhzRadioDeviceTypeInternal) {
-        subghz_txrx_radio_device_power_off(instance);
-        subghz_devices_end(instance->radio_device);
+    if(instance->devices_inited) {
+        if(instance->radio_device_type != SubGhzRadioDeviceTypeInternal) {
+            subghz_txrx_radio_device_power_off(instance);
+            subghz_devices_end(instance->radio_device);
+        }
+        subghz_devices_deinit();
     }
-
-    subghz_devices_deinit();
 
     subghz_worker_free(instance->worker);
     subghz_receiver_free(instance->receiver);
@@ -237,6 +257,7 @@ float subghz_txrx_get_longitude(SubGhzTxRx* instance) {
 
 static void subghz_txrx_begin(SubGhzTxRx* instance, uint8_t* preset_data) {
     furi_assert(instance);
+    subghz_txrx_lazy_devices_init(instance);
     subghz_devices_reset(instance->radio_device);
     subghz_devices_idle(instance->radio_device);
     subghz_devices_load_preset(instance->radio_device, FuriHalSubGhzPresetCustom, preset_data);
@@ -285,7 +306,9 @@ static void subghz_txrx_rx_end(SubGhzTxRx* instance) {
 
 void subghz_txrx_sleep(SubGhzTxRx* instance) {
     furi_assert(instance);
-    subghz_devices_sleep(instance->radio_device);
+    if(instance->radio_device) {
+        subghz_devices_sleep(instance->radio_device);
+    }
     instance->txrx_state = SubGhzTxRxStateSleep;
 }
 
@@ -676,6 +699,7 @@ bool subghz_txrx_radio_device_is_external_connected(SubGhzTxRx* instance, const 
 SubGhzRadioDeviceType
     subghz_txrx_radio_device_set(SubGhzTxRx* instance, SubGhzRadioDeviceType radio_device_type) {
     furi_assert(instance);
+    subghz_txrx_lazy_devices_init(instance);
 
     if(radio_device_type == SubGhzRadioDeviceTypeExternalCC1101 &&
        subghz_txrx_radio_device_is_external_connected(instance, SUBGHZ_DEVICE_CC1101_EXT_NAME)) {

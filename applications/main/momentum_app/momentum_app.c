@@ -163,8 +163,8 @@ static void
     momentum_app_push_mainmenu_app_raw(MomentumApp* app, FuriString* label, FuriString* exe) {
     CharList_push_back(app->mainmenu_app_exes, strdup(furi_string_get_cstr(exe)));
     // Display logic mimics applications/services/gui/modules/menu.c
-    if(furi_string_equal(label, "Bloodmoon")) {
-        furi_string_set(label, "BM");
+    if(furi_string_equal(label, "Moon")) {
+        furi_string_set(label, "Moon");
     } else if(furi_string_equal(label, "125 kHz RFID")) {
         furi_string_set(label, "RFID");
     } else if(furi_string_equal(label, "Sub-GHz")) {

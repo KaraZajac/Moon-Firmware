@@ -22,7 +22,7 @@ const char* const menu_style_names[MenuStyleCount] = {
     "Vertical",
     "C64",
     "Compact",
-    "MNTM",
+    "MOON",
     "CoverFlow",
 };
 static void momentum_app_scene_interface_mainmenu_menu_style_changed(VariableItem* item) {

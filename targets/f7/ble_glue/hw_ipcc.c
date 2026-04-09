@@ -119,7 +119,7 @@ void HW_IPCC_SYS_SendCmd(void) {
 
     while(LL_C1_IPCC_IsActiveFlag_CHx(IPCC, HW_IPCC_SYSTEM_CMD_RSP_CHANNEL)) {
         if(furi_hal_cortex_timer_is_expired(timer)) {
-            /* Bloodmoon: do NOT furi_check/crash here.  During radio stack
+            /* Moon: do NOT furi_check/crash here.  During radio stack
              * transitions (Light→Full), C2 may not respond if SBRV is stale
              * or FUS is mid-reboot.  furi_crash kills interrupts, LED, USB —
              * making the device appear completely bricked with no recovery

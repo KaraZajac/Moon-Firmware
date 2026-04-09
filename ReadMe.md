@@ -1,4 +1,4 @@
-<h1 align="center">Bloodmoon Firmware</h1>
+<h1 align="center">Moon Firmware</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/status-experimental-red" alt="Experimental">
@@ -16,7 +16,7 @@
 
 ## Automotive SubGHz Protocols
 
-Bloodmoon expands SubGHz automotive protocol coverage far beyond stock, porting protocol implementations from [D4C1-Labs/Flipper-ARF](https://github.com/D4C1-Labs/Flipper-ARF).
+Moon expands SubGHz automotive protocol coverage far beyond stock, porting protocol implementations from [D4C1-Labs/Flipper-ARF](https://github.com/D4C1-Labs/Flipper-ARF).
 
 | Manufacturer | Protocol | Notes |
 |---|---|---|
@@ -53,9 +53,9 @@ Shifted button position display for 12+ brands. Full encode and decode for 44 ga
 
 ## Execute-in-Place (XIP) Flash Loading
 
-Bloodmoon moves all protocol libraries (Sub-GHz, NFC, LFRFID, Infrared, iButton, mJS) out of the firmware and into their respective FAP applications. This reduces firmware size by **~36%** while keeping applications fast through a custom XIP (Execute-in-Place) loader that runs app code directly from internal flash instead of RAM.
+Moon moves all protocol libraries (Sub-GHz, NFC, LFRFID, Infrared, iButton, mJS) out of the firmware and into their respective FAP applications. This reduces firmware size by **~36%** while keeping applications fast through a custom XIP (Execute-in-Place) loader that runs app code directly from internal flash instead of RAM.
 
-| | Momentum (dev) | Bloodmoon | Saved |
+| | Momentum (dev) | Moon | Saved |
 |---|---|---|---|
 | `firmware.bin` | ~877 KB | ~496 KB | **~381 KB** |
 | Flash pages used | ~214 | ~125 | 89 pages |
@@ -63,7 +63,7 @@ Bloodmoon moves all protocol libraries (Sub-GHz, NFC, LFRFID, Infrared, iButton,
 
 ### How XIP Works
 
-When a FAP application launches, Bloodmoon checks if it fits in RAM. Small apps load entirely into RAM as usual. Larger apps (like Sub-GHz at 247 KB and NFC at 183 KB) have their read-only sections (`.text` and `.rodata`) written to a **300 KB XIP region** in free internal flash, where the CPU executes them in place. Only writable data (`.data`, `.bss`) goes to RAM — typically under 200 bytes.
+When a FAP application launches, Moon checks if it fits in RAM. Small apps load entirely into RAM as usual. Larger apps (like Sub-GHz at 247 KB and NFC at 183 KB) have their read-only sections (`.text` and `.rodata`) written to a **300 KB XIP region** in free internal flash, where the CPU executes them in place. Only writable data (`.data`, `.bss`) goes to RAM — typically under 200 bytes.
 
 | App | Total Size | XIP (flash) | RAM (heap) |
 |---|---|---|---|
@@ -75,7 +75,7 @@ When a FAP application launches, Bloodmoon checks if it fits in RAM. Small apps 
 
 ### Flash Cache
 
-The XIP region includes a cache header. When re-launching the same app, Bloodmoon validates the cached data (file size + CRC32 + API version) and skips the erase/write cycle entirely. This provides:
+The XIP region includes a cache header. When re-launching the same app, Moon validates the cached data (file size + CRC32 + API version) and skips the erase/write cycle entirely. This provides:
 
 - **Instant re-launch**: ~100ms instead of ~10 seconds
 - **Near-zero flash wear**: erase cycles only occur on the first launch after a firmware or app update
@@ -109,7 +109,7 @@ The updater has also been hardened with a CRC peripheral reset before FUS calls 
 
 All user-facing applications run as FAPs from the SD card:
 
-| App | Momentum | Bloodmoon |
+| App | Momentum | Moon |
 |---|---|---|
 | Sub-GHz | Internal | **External (XIP)** |
 | NFC | External | **External (XIP)** |
@@ -139,7 +139,7 @@ If the device boot-loops or shows "secure enclave damaged" after a failed update
 
 1. Enter DFU mode — hold **LEFT + BACK** while plugging in USB
 2. Flash a clean Momentum firmware via [qFlipper](https://flipperzero.one/update)
-3. Once Momentum boots, re-apply Bloodmoon via the SD card update package
+3. Once Momentum boots, re-apply Moon via the SD card update package
 
 ---
 
