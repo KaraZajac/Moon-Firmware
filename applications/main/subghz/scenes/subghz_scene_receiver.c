@@ -544,5 +544,13 @@ bool subghz_scene_receiver_on_event(void* context, SceneManagerEvent event) {
 }
 
 void subghz_scene_receiver_on_exit(void* context) {
-    UNUSED(context);
+    SubGhz* subghz = context;
+
+    /* Safety net: ensure RX is stopped and callbacks cleared even if
+     * on_event's Back handler didn't run (e.g., scene popped externally).
+     * subghz_txrx_stop is a no-op if already idle. */
+    subghz_txrx_stop(subghz->txrx);
+    subghz_txrx_hopper_set_state(subghz->txrx, SubGhzHopperStateOFF);
+    subghz_txrx_set_rx_callback(subghz->txrx, NULL, subghz);
+    subghz->state_notifications = SubGhzNotificationStateIDLE;
 }

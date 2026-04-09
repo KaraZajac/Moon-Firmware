@@ -184,12 +184,8 @@ SubGhz* subghz_alloc(bool alloc_for_tx_only) {
             SubGhzViewIdFrequencyAnalyzer,
             subghz_frequency_analyzer_get_view(subghz->subghz_frequency_analyzer));
     }
-    // Read RAW
-    subghz->subghz_read_raw = subghz_read_raw_alloc(alloc_for_tx_only);
-    view_dispatcher_add_view(
-        subghz->view_dispatcher,
-        SubGhzViewIdReadRAW,
-        subghz_read_raw_get_view(subghz->subghz_read_raw));
+    // Read RAW — deferred to scene on_enter to reduce startup heap usage
+    subghz->subghz_read_raw = NULL;
 
     //init threshold rssi
     subghz->threshold_rssi = subghz_threshold_rssi_alloc();
@@ -323,9 +319,11 @@ void subghz_free(SubGhz* subghz, bool alloc_for_tx_only) {
         view_dispatcher_remove_view(subghz->view_dispatcher, SubGhzViewIdFrequencyAnalyzer);
         subghz_frequency_analyzer_free(subghz->subghz_frequency_analyzer);
     }
-    // Read RAW
-    view_dispatcher_remove_view(subghz->view_dispatcher, SubGhzViewIdReadRAW);
-    subghz_read_raw_free(subghz->subghz_read_raw);
+    // Read RAW (may be NULL if scene was never entered)
+    if(subghz->subghz_read_raw) {
+        view_dispatcher_remove_view(subghz->view_dispatcher, SubGhzViewIdReadRAW);
+        subghz_read_raw_free(subghz->subghz_read_raw);
+    }
     if(!alloc_for_tx_only) {
         // Submenu
         view_dispatcher_remove_view(subghz->view_dispatcher, SubGhzViewIdMenu);
