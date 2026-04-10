@@ -68,6 +68,9 @@ typedef void (*BleGattClientCallback)(BleGattClientEvent* event, void* context);
 /** Initialize GATT client */
 void ble_gatt_client_init(void);
 
+/** Deinitialize GATT client (unregister event handler) */
+void ble_gatt_client_deinit(void);
+
 /** Set GATT client event callback */
 void ble_gatt_client_set_callback(BleGattClientCallback callback, void* context);
 

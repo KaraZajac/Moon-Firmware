@@ -219,6 +219,15 @@ void ble_gatt_client_init(void) {
     }
 }
 
+void ble_gatt_client_deinit(void) {
+    if(gatt_client_handler) {
+        ble_event_dispatcher_unregister_svc_handler(gatt_client_handler);
+        gatt_client_handler = NULL;
+    }
+    gatt_client_callback = NULL;
+    gatt_client_context = NULL;
+}
+
 void ble_gatt_client_set_callback(BleGattClientCallback callback, void* context) {
     gatt_client_callback = callback;
     gatt_client_context = context;

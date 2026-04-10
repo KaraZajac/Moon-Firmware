@@ -672,6 +672,7 @@ Function,+,ble_gatt_characteristic_update,_Bool,"uint16_t, BleGattCharacteristic
 Function,+,ble_gatt_client_discover_characteristics,_Bool,"uint16_t, const BleGattService*"
 Function,+,ble_gatt_client_discover_services,_Bool,uint16_t
 Function,+,ble_gatt_client_exchange_mtu,_Bool,uint16_t
+Function,+,ble_gatt_client_deinit,void,
 Function,+,ble_gatt_client_init,void,
 Function,+,ble_gatt_client_read,_Bool,"uint16_t, uint16_t"
 Function,+,ble_gatt_client_set_callback,void,"BleGattClientCallback, void*"
