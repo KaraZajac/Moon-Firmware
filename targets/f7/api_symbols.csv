@@ -670,8 +670,8 @@ Function,+,ble_gatt_characteristic_delete,void,"uint16_t, BleGattCharacteristicI
 Function,+,ble_gatt_characteristic_init,void,"uint16_t, const BleGattCharacteristicParams*, BleGattCharacteristicInstance*"
 Function,+,ble_gatt_characteristic_update,_Bool,"uint16_t, BleGattCharacteristicInstance*, const void*"
 Function,+,ble_gatt_client_discover_characteristics,_Bool,"uint16_t, const BleGattService*"
-Function,+,ble_gatt_client_exchange_mtu,_Bool,uint16_t
 Function,+,ble_gatt_client_discover_services,_Bool,uint16_t
+Function,+,ble_gatt_client_exchange_mtu,_Bool,uint16_t
 Function,+,ble_gatt_client_init,void,
 Function,+,ble_gatt_client_read,_Bool,"uint16_t, uint16_t"
 Function,+,ble_gatt_client_set_callback,void,"BleGattClientCallback, void*"
@@ -2314,13 +2314,13 @@ Function,-,mbedtls_sha1_free,void,mbedtls_sha1_context*
 Function,-,mbedtls_sha1_init,void,mbedtls_sha1_context*
 Function,-,mbedtls_sha1_starts,int,mbedtls_sha1_context*
 Function,-,mbedtls_sha1_update,int,"mbedtls_sha1_context*, const unsigned char*, size_t"
-Function,-,mbedtls_sha256,int,"const unsigned char*, size_t, unsigned char*, int"
-Function,-,mbedtls_sha256_clone,void,"mbedtls_sha256_context*, const mbedtls_sha256_context*"
-Function,-,mbedtls_sha256_finish,int,"mbedtls_sha256_context*, unsigned char*"
-Function,-,mbedtls_sha256_free,void,mbedtls_sha256_context*
-Function,-,mbedtls_sha256_init,void,mbedtls_sha256_context*
-Function,-,mbedtls_sha256_starts,int,"mbedtls_sha256_context*, int"
-Function,-,mbedtls_sha256_update,int,"mbedtls_sha256_context*, const unsigned char*, size_t"
+Function,+,mbedtls_sha256,int,"const unsigned char*, size_t, unsigned char*, int"
+Function,+,mbedtls_sha256_clone,void,"mbedtls_sha256_context*, const mbedtls_sha256_context*"
+Function,+,mbedtls_sha256_finish,int,"mbedtls_sha256_context*, unsigned char*"
+Function,+,mbedtls_sha256_free,void,mbedtls_sha256_context*
+Function,+,mbedtls_sha256_init,void,mbedtls_sha256_context*
+Function,+,mbedtls_sha256_starts,int,"mbedtls_sha256_context*, int"
+Function,+,mbedtls_sha256_update,int,"mbedtls_sha256_context*, const unsigned char*, size_t"
 Function,-,mblen,int,"const char*, size_t"
 Function,-,mbstowcs,size_t,"wchar_t*, const char*, size_t"
 Function,-,mbtowc,int,"wchar_t*, const char*, size_t"
