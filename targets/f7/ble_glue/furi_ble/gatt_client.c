@@ -134,7 +134,15 @@ static BleEventAckStatus gatt_client_event_handler(void* pckt, void* context) {
         GattPendingOp completed_op = pending_op;
         pending_op = GattOpNone;
 
-        if(resp->Error_Code != 0) {
+        /* Error 0x0A (Attribute Not Found) is the normal end-of-discovery
+         * signal during service/characteristic discovery — not a real error.
+         * Error 0x05 (Insufficient Authentication) during discovery means
+         * we need encryption but can still deliver partial results. */
+        bool is_discovery = (completed_op == GattOpDiscoverServices ||
+                            completed_op == GattOpDiscoverChars);
+        bool is_benign_error = (resp->Error_Code == 0x0A); /* Attribute Not Found */
+
+        if(resp->Error_Code != 0 && !is_benign_error && !is_discovery) {
             BleGattClientEvent event = {
                 .type = BleGattClientEventError,
                 .error = {.error_code = resp->Error_Code},
@@ -183,12 +191,18 @@ static BleEventAckStatus gatt_client_event_handler(void* pckt, void* context) {
 
     case ACI_GATT_ERROR_RESP_VSEVT_CODE: {
         aci_gatt_error_resp_event_rp0* resp = (aci_gatt_error_resp_event_rp0*)blue_evt->data;
-        FURI_LOG_W(TAG, "GATT error: attr=0x%04X code=0x%02X", resp->Attribute_Handle, resp->Error_Code);
-        BleGattClientEvent event = {
-            .type = BleGattClientEventError,
-            .error = {.error_code = resp->Error_Code},
-        };
-        gatt_client_callback(&event, gatt_client_context);
+        /* 0x0A = Attribute Not Found — normal end-of-discovery, not an error */
+        if(resp->Error_Code == 0x0A &&
+           (pending_op == GattOpDiscoverServices || pending_op == GattOpDiscoverChars)) {
+            FURI_LOG_D(TAG, "Discovery end signal at attr=0x%04X", resp->Attribute_Handle);
+        } else {
+            FURI_LOG_W(TAG, "GATT error: attr=0x%04X code=0x%02X", resp->Attribute_Handle, resp->Error_Code);
+            BleGattClientEvent event = {
+                .type = BleGattClientEventError,
+                .error = {.error_code = resp->Error_Code},
+            };
+            gatt_client_callback(&event, gatt_client_context);
+        }
     } break;
 
     default:
@@ -256,6 +270,16 @@ bool ble_gatt_client_write(
     if(status != BLE_STATUS_SUCCESS) {
         pending_op = GattOpNone;
         FURI_LOG_E(TAG, "Write failed: 0x%02X", status);
+    }
+    return status == BLE_STATUS_SUCCESS;
+}
+
+bool ble_gatt_client_exchange_mtu(uint16_t connection_handle) {
+    tBleStatus status = aci_gatt_exchange_config(connection_handle);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "MTU exchange failed: 0x%02X", status);
+    } else {
+        FURI_LOG_I(TAG, "MTU exchange requested");
     }
     return status == BLE_STATUS_SUCCESS;
 }

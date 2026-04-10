@@ -143,6 +143,33 @@ bool gap_connect(uint8_t address_type, const uint8_t* address);
 bool gap_disconnect(uint16_t connection_handle);
 uint16_t gap_get_connection_handle(void);
 
+/** Set a fixed PIN for the next pairing attempt.
+ *  When set, the GAP layer will respond with this PIN instead of a random one
+ *  when the remote device requests passkey authentication.
+ *  Set to 0 to revert to random PIN generation.
+ *
+ *  @param pin  6-digit PIN code (e.g. 123456), or 0 to disable
+ */
+void gap_set_fixed_pin(uint32_t pin);
+
+/** Configure pairing for central role with a fixed PIN.
+ *  Sets IO capability to KEYBOARD_DISPLAY and configures the stack to use
+ *  the provided PIN automatically. Call with pin=0 to restore defaults.
+ *
+ *  @param fixed_pin  6-digit PIN (e.g. 123456), or 0 to restore defaults
+ */
+void gap_set_pairing_method(uint32_t fixed_pin);
+
+/** Initiate pairing/bonding with the connected peripheral (central role).
+ *  Must be called after gap_connect() succeeds and before GATT discovery
+ *  if the remote device requires authentication.
+ *
+ *  @param connection_handle  handle from gap_get_connection_handle()
+ *  @param force_rebond       true to force re-pairing even if already bonded
+ *  @return true if pairing request was sent
+ */
+bool gap_pair(uint16_t connection_handle, bool force_rebond);
+
 #ifdef __cplusplus
 }
 #endif

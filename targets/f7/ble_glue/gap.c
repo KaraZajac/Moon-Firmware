@@ -50,6 +50,7 @@ typedef struct {
     GapScanParams pending_scan_params;
     volatile bool scan_result;
     FuriSemaphore* scan_semaphore;
+    uint32_t fixed_pin; /**< Non-zero = use this PIN for passkey auth */
 } Gap;
 
 typedef enum {
@@ -277,8 +278,15 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             break;
 
         case ACI_GAP_PASS_KEY_REQ_VSEVT_CODE: {
-            // Generate random PIN code
-            uint32_t pin = rand() % 999999; //-V1064
+            uint32_t pin;
+            if(gap->fixed_pin != 0) {
+                // Use app-provided fixed PIN
+                pin = gap->fixed_pin;
+                FURI_LOG_I(TAG, "Pass key request: using fixed pin %06lu", pin);
+            } else {
+                // Generate random PIN code
+                pin = rand() % 999999; //-V1064
+            }
             aci_gap_pass_key_resp(gap->service.connection_handle, pin);
             if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagLock)) {
                 FURI_LOG_I(TAG, "Pass key request event. Pin: ******");
@@ -339,9 +347,13 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                     pairing_complete->Status);
                 aci_gap_terminate(gap->service.connection_handle, 5);
             } else {
-                FURI_LOG_I(TAG, "Pairing complete");
-                GapEvent event = {.type = GapEventTypeConnected};
-                gap->on_event_cb(event, gap->context); //-V595
+                FURI_LOG_I(TAG, "Pairing complete (central=%d)", gap->is_central);
+                if(!gap->is_central) {
+                    // Only notify BT service for peripheral connections (phone companion)
+                    // Central connections (our app) handle pairing completion internally
+                    GapEvent event = {.type = GapEventTypeConnected};
+                    gap->on_event_cb(event, gap->context); //-V595
+                }
             }
             break;
 
@@ -984,4 +996,72 @@ uint16_t gap_get_connection_handle(void) {
     uint16_t handle = gap->service.connection_handle;
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
     return handle;
+}
+
+void gap_set_pairing_method(uint32_t fixed_pin) {
+    furi_check(gap);
+
+    if(fixed_pin > 0) {
+        // Configure for fixed PIN entry (central connecting to device with known PIN)
+        // Use legacy pairing (SC unsupported) for maximum compatibility
+        gap->fixed_pin = fixed_pin;
+        aci_gap_set_io_capability(IO_CAP_KEYBOARD_ONLY);
+        aci_gap_set_authentication_requirement(
+            1, // bonding
+            MITM_PROTECTION_REQUIRED, // Force passkey exchange for Security Level 3
+            SC_PAIRING_UNSUPPORTED,   // Legacy pairing for Meshtastic compat
+            0, // no keypress
+            CFG_ENCRYPTION_KEY_SIZE_MIN,
+            CFG_ENCRYPTION_KEY_SIZE_MAX,
+            USE_FIXED_PIN_FOR_PAIRING_ALLOWED,
+            fixed_pin,
+            CFG_IDENTITY_ADDRESS);
+        FURI_LOG_I(TAG, "Auth configured: fixed PIN %06lu, legacy+MITM, IO=KEYBOARD_ONLY", fixed_pin);
+    } else {
+        // Restore default peripheral pairing config
+        gap->fixed_pin = 0;
+        if(gap->config) {
+            uint8_t auth_req_mitm_mode = MITM_PROTECTION_REQUIRED;
+            uint8_t auth_req_use_fixed_pin = USE_FIXED_PIN_FOR_PAIRING_FORBIDDEN;
+            if(gap->config->pairing_method == GapPairingPinCodeShow) {
+                aci_gap_set_io_capability(IO_CAP_DISPLAY_ONLY);
+            } else if(gap->config->pairing_method == GapPairingPinCodeVerifyYesNo) {
+                aci_gap_set_io_capability(IO_CAP_DISPLAY_YES_NO);
+            } else {
+                auth_req_mitm_mode = MITM_PROTECTION_NOT_REQUIRED;
+                auth_req_use_fixed_pin = USE_FIXED_PIN_FOR_PAIRING_ALLOWED;
+                aci_gap_set_io_capability(IO_CAP_DISPLAY_YES_NO);
+            }
+            aci_gap_set_authentication_requirement(
+                gap->config->bonding_mode,
+                auth_req_mitm_mode,
+                CFG_SC_SUPPORT,
+                0,
+                CFG_ENCRYPTION_KEY_SIZE_MIN,
+                CFG_ENCRYPTION_KEY_SIZE_MAX,
+                auth_req_use_fixed_pin,
+                0,
+                CFG_IDENTITY_ADDRESS);
+            FURI_LOG_I(TAG, "Auth restored to default peripheral config");
+        }
+    }
+}
+
+bool gap_pair(uint16_t connection_handle, bool force_rebond) {
+    furi_check(gap);
+    tBleStatus status = aci_gap_send_pairing_req(connection_handle, force_rebond ? 0x01 : 0x00);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Pairing request failed: 0x%02X", status);
+        return false;
+    }
+    FURI_LOG_I(TAG, "Pairing request sent (handle=%d, rebond=%d)", connection_handle, force_rebond);
+    return true;
+}
+
+void gap_set_fixed_pin(uint32_t pin) {
+    furi_check(gap);
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+    gap->fixed_pin = pin;
+    FURI_LOG_I(TAG, "Fixed PIN %s", pin ? "set" : "cleared");
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
 }

@@ -89,6 +89,11 @@ bool ble_gatt_client_write(
     const uint8_t* data,
     uint16_t data_len);
 
+/** Request MTU exchange (must be called after connection, before reads).
+ *  The server will respond with its max MTU; the actual MTU is the minimum of both.
+ *  Result is delivered asynchronously via the GapEventTypeUpdateMTU event. */
+bool ble_gatt_client_exchange_mtu(uint16_t connection_handle);
+
 /** Enable/disable notifications for a characteristic */
 bool ble_gatt_client_subscribe_notifications(
     uint16_t connection_handle,

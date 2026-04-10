@@ -670,6 +670,7 @@ Function,+,ble_gatt_characteristic_delete,void,"uint16_t, BleGattCharacteristicI
 Function,+,ble_gatt_characteristic_init,void,"uint16_t, const BleGattCharacteristicParams*, BleGattCharacteristicInstance*"
 Function,+,ble_gatt_characteristic_update,_Bool,"uint16_t, BleGattCharacteristicInstance*, const void*"
 Function,+,ble_gatt_client_discover_characteristics,_Bool,"uint16_t, const BleGattService*"
+Function,+,ble_gatt_client_exchange_mtu,_Bool,uint16_t
 Function,+,ble_gatt_client_discover_services,_Bool,uint16_t
 Function,+,ble_gatt_client_init,void,
 Function,+,ble_gatt_client_read,_Bool,"uint16_t, uint16_t"
@@ -1939,6 +1940,9 @@ Function,-,gap_extra_beacon_stop,_Bool,
 Function,+,gap_get_connection_handle,uint16_t,
 Function,+,gap_get_state,GapState,
 Function,-,gap_init,_Bool,"GapConfig*, const GapRootSecurityKeys*, GapEventCallback, void*"
+Function,+,gap_pair,_Bool,"uint16_t, _Bool"
+Function,+,gap_set_fixed_pin,void,uint32_t
+Function,+,gap_set_pairing_method,void,uint32_t
 Function,+,gap_set_scan_callback,void,"GapScanCallback, void*"
 Function,-,gap_start_advertising,void,
 Function,+,gap_start_scanning,_Bool,const GapScanParams*
