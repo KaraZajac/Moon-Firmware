@@ -116,6 +116,9 @@ static BleEventAckStatus gatt_client_event_handler(void* pckt, void* context) {
     case ACI_GATT_NOTIFICATION_VSEVT_CODE: {
         aci_gatt_notification_event_rp0* resp =
             (aci_gatt_notification_event_rp0*)blue_evt->data;
+        FURI_LOG_D(TAG, "Raw notif: conn=0x%04X attr=0x%04X len=%d",
+            resp->Connection_Handle, resp->Attribute_Handle,
+            resp->Attribute_Value_Length);
         BleGattClientEvent event = {
             .type = BleGattClientEventNotification,
             .notification =

@@ -312,6 +312,14 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 if(gap->config->pairing_method != GapPairingNone) {
                     aci_gap_slave_security_req(event->Connection_Handle);
                 }
+            } else {
+                /* Central role: restart advertising so other devices can still
+                 * connect to our peripheral services (dual-role support) */
+                if(gap->was_advertising && gap->enable_adv) {
+                    FURI_LOG_I(TAG, "Restarting advertising after central connect");
+                    gap->was_advertising = false;
+                    gap_advertise_start(GapStateAdvFast);
+                }
             }
         } break;
 
@@ -676,7 +684,10 @@ static void gap_advertise_start(GapState new_state) {
     if(status) {
         FURI_LOG_E(TAG, "set_discoverable failed %d", status);
     }
-    gap->state = new_state;
+    // Only update state if no active connections — if connected, stay Connected
+    if(gap_active_connection_count() == 0) {
+        gap->state = new_state;
+    }
     GapEvent event = {.type = GapEventTypeStartAdvertising};
     gap->on_event_cb(event, gap->context);
     furi_timer_start(gap->advertise_timer, INITIAL_ADV_TIMEOUT);
