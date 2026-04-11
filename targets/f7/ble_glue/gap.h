@@ -143,6 +143,15 @@ bool gap_connect(uint8_t address_type, const uint8_t* address);
 bool gap_disconnect(uint16_t connection_handle);
 uint16_t gap_get_connection_handle(void);
 
+/** Get connection handle for a specific role.
+ *  @param central  true = get central connection, false = peripheral
+ *  @return connection handle, or 0 if none with that role
+ */
+uint16_t gap_get_connection_handle_by_role(bool central);
+
+/** Get current number of active connections */
+uint8_t gap_get_connection_count(void);
+
 /** Set a fixed PIN for the next pairing attempt.
  *  When set, the GAP layer will respond with this PIN instead of a random one
  *  when the remote device requests passkey authentication.

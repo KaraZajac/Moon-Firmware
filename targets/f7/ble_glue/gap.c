@@ -16,11 +16,20 @@
 
 #define GAP_INTERVAL_TO_MS(x) (uint16_t)((x) * 1.25)
 
+#define GAP_MAX_CONNECTIONS 2
+
+typedef struct {
+    uint16_t handle;
+    bool active;
+    bool is_central;
+} GapConnectionSlot;
+
 typedef struct {
     uint16_t gap_svc_handle;
     uint16_t dev_name_char_handle;
     uint16_t appearance_char_handle;
-    uint16_t connection_handle;
+    uint16_t connection_handle; // legacy: first active handle for backward compat
+    GapConnectionSlot connections[GAP_MAX_CONNECTIONS];
     uint8_t adv_svc_uuid_len;
     uint8_t adv_svc_uuid[20];
     uint8_t mfg_data_len;
@@ -67,6 +76,63 @@ static Gap* gap = NULL;
 static void gap_advertise_start(GapState new_state);
 static int32_t gap_app(void* context);
 static void gap_scan_timer_callback(void* context);
+
+/* ── Multi-connection helpers ────────────────────────────────────────── */
+
+static GapConnectionSlot* gap_find_connection(uint16_t handle) {
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(gap->service.connections[i].active && gap->service.connections[i].handle == handle) {
+            return &gap->service.connections[i];
+        }
+    }
+    return NULL;
+}
+
+static GapConnectionSlot* gap_alloc_connection(uint16_t handle, bool is_central) {
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(!gap->service.connections[i].active) {
+            gap->service.connections[i].handle = handle;
+            gap->service.connections[i].active = true;
+            gap->service.connections[i].is_central = is_central;
+            // Keep legacy handle updated (first active connection)
+            gap->service.connection_handle = handle;
+            return &gap->service.connections[i];
+        }
+    }
+    return NULL; // all slots full
+}
+
+static void gap_free_connection(uint16_t handle) {
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(gap->service.connections[i].active && gap->service.connections[i].handle == handle) {
+            gap->service.connections[i].active = false;
+            break;
+        }
+    }
+    // Update legacy handle to first remaining active connection
+    gap->service.connection_handle = 0;
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(gap->service.connections[i].active) {
+            gap->service.connection_handle = gap->service.connections[i].handle;
+            break;
+        }
+    }
+}
+
+static uint8_t gap_active_connection_count(void) {
+    uint8_t count = 0;
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(gap->service.connections[i].active) count++;
+    }
+    return count;
+}
+
+static bool gap_has_central_connection(void) {
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(gap->service.connections[i].active && gap->service.connections[i].is_central) return true;
+    }
+    return false;
+}
 
 static void gap_verify_connection_parameters(Gap* gap) {
     furi_check(gap);
@@ -142,23 +208,40 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
     case HCI_DISCONNECTION_COMPLETE_EVT_CODE: {
         hci_disconnection_complete_event_rp0* disconnection_complete_event =
             (hci_disconnection_complete_event_rp0*)event_pckt->data;
-        if(disconnection_complete_event->Connection_Handle == gap->service.connection_handle) {
-            gap->service.connection_handle = 0;
+        uint16_t disc_handle = disconnection_complete_event->Connection_Handle;
+        GapConnectionSlot* slot = gap_find_connection(disc_handle);
+        bool was_central = slot ? slot->is_central : gap->is_central;
+
+        FURI_LOG_I(
+            TAG, "Disconnect. Handle: 0x%04X Reason: %02X Role: %s",
+            disc_handle, disconnection_complete_event->Reason,
+            was_central ? "central" : "peripheral");
+
+        gap_free_connection(disc_handle);
+
+        // Update state based on remaining connections
+        if(gap_active_connection_count() == 0) {
             gap->state = GapStateIdle;
-            FURI_LOG_I(
-                TAG, "Disconnect. Reason: %02X", disconnection_complete_event->Reason);
+            gap->is_secure = false;
+            gap->is_central = false;
+        } else {
+            // Still have another connection active — stay Connected
+            gap->is_central = gap_has_central_connection();
         }
-        bool was_central = gap->is_central;
-        gap->is_secure = false;
-        gap->is_central = false;
         gap->negotiation_round = 0;
         furi_delay_us(666 + 666);
-        /* Restart advertising: always for peripheral, or for central if we
-         * had stopped advertising to scan/connect */
-        if(gap->enable_adv && (!was_central || gap->was_advertising)) {
-            if(was_central) gap->was_advertising = false;
+
+        /* Restart advertising if no peripheral connection exists and
+         * advertising was stopped or is desired */
+        if(gap->enable_adv && gap_active_connection_count() == 0) {
+            gap->was_advertising = false;
+            gap_advertise_start(GapStateAdvFast);
+        } else if(gap->enable_adv && was_central && gap->was_advertising) {
+            // Central disconnected, restart advertising for peripheral
+            gap->was_advertising = false;
             gap_advertise_start(GapStateAdvFast);
         }
+
         GapEvent event = {.type = GapEventTypeDisconnected};
         gap->on_event_cb(event, gap->context);
     } break;
@@ -206,15 +289,24 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 is_central ? "central" : "peripheral",
                 event->Conn_Interval);
 
+            // Allocate connection slot
+            GapConnectionSlot* slot = gap_alloc_connection(
+                event->Connection_Handle, is_central);
+            if(!slot) {
+                FURI_LOG_E(TAG, "No free connection slot!");
+                aci_gap_terminate(event->Connection_Handle, 0x13);
+                break;
+            }
+
             gap->connection_params.conn_interval = event->Conn_Interval;
             gap->connection_params.slave_latency = event->Conn_Latency;
             gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
 
             gap->state = GapStateConnected;
-            gap->service.connection_handle = event->Connection_Handle;
+            gap->is_central = is_central;
 
             if(!is_central) {
-                /* Peripheral role: stop advertising timer */
+                /* Peripheral role: stop advertising timer but keep service available */
                 furi_timer_stop(gap->advertise_timer);
                 gap_verify_connection_parameters(gap);
                 if(gap->config->pairing_method != GapPairingNone) {
@@ -778,24 +870,31 @@ static int32_t gap_app(void* context) {
         } else if(command == GapCommandAdvStop) {
             gap_advertise_stop();
         } else if(command == GapCommandScanStart) {
-            /* Stop advertising if active */
+            /* Stop advertising if active (radio can't advertise + scan simultaneously) */
             if(gap->state == GapStateAdvFast || gap->state == GapStateAdvLowPower ||
                gap->state == GapStateStartingAdv) {
                 FURI_LOG_I(TAG, "Stopping advertising for scan");
                 furi_timer_stop(gap->advertise_timer);
                 aci_gap_set_non_discoverable();
                 gap->was_advertising = true;
-                gap->state = GapStateIdle;
+                if(gap_active_connection_count() == 0) {
+                    gap->state = GapStateIdle;
+                }
             }
             bool ok = false;
-            if(gap->state == GapStateIdle) {
+            /* Allow scanning from Idle or Connected (peripheral) states */
+            if(gap->state == GapStateIdle || gap->state == GapStateConnected) {
                 uint16_t interval = gap->pending_scan_params.interval;
                 uint16_t window = gap->pending_scan_params.window;
                 uint8_t scan_type = gap->pending_scan_params.active ? 1 : 0;
                 tBleStatus status = aci_gap_start_observation_proc(
                     interval, window, scan_type, 0x00, 0, 0x00);
                 if(status == BLE_STATUS_SUCCESS) {
-                    gap->state = GapStateScanning;
+                    // Only update state to Scanning if not Connected
+                    // (if Connected, stay Connected — scanning runs alongside)
+                    if(gap_active_connection_count() == 0) {
+                        gap->state = GapStateScanning;
+                    }
                     if(gap->pending_scan_params.timeout_ms > 0) {
                         furi_timer_start(gap->scan_timer,
                             gap->pending_scan_params.timeout_ms);
@@ -907,6 +1006,13 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
 
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
+    /* Check if we have a free connection slot */
+    if(gap_active_connection_count() >= GAP_MAX_CONNECTIONS) {
+        FURI_LOG_E(TAG, "Cannot connect: all %d slots in use", GAP_MAX_CONNECTIONS);
+        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+        return false;
+    }
+
     /* Stop advertising if active so we can connect as central */
     if(gap->state == GapStateAdvFast || gap->state == GapStateAdvLowPower ||
        gap->state == GapStateStartingAdv) {
@@ -914,20 +1020,26 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
         furi_timer_stop(gap->advertise_timer);
         aci_gap_set_non_discoverable();
         gap->was_advertising = true;
-        gap->state = GapStateIdle;
+        /* Don't set state to Idle if we have a peripheral connection */
+        if(gap_active_connection_count() == 0) {
+            gap->state = GapStateIdle;
+        }
     }
 
-    if(gap->state != GapStateIdle && gap->state != GapStateScanning) {
-        FURI_LOG_E(TAG, "Cannot connect in state %d", gap->state);
-        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
-        return false;
-    }
-
-    /* Stop scanning before connecting */
+    /* Stop scanning before connecting (radio can't scan and create connection simultaneously) */
     if(gap->state == GapStateScanning) {
         furi_timer_stop(gap->scan_timer);
         aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
-        gap->state = GapStateIdle;
+        if(gap_active_connection_count() == 0) {
+            gap->state = GapStateIdle;
+        }
+    }
+
+    /* Allow connecting from: Idle, Connected (peripheral), Scanning */
+    if(gap->state != GapStateIdle && gap->state != GapStateConnected) {
+        FURI_LOG_E(TAG, "Cannot connect in state %d", gap->state);
+        furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+        return false;
     }
 
     /* Retry connection if BLE controller is still busy after advertising stop */
@@ -975,8 +1087,9 @@ bool gap_disconnect(uint16_t connection_handle) {
 
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
-    if(gap->state != GapStateConnected) {
-        FURI_LOG_E(TAG, "Cannot disconnect in state %d", gap->state);
+    GapConnectionSlot* slot = gap_find_connection(connection_handle);
+    if(!slot) {
+        FURI_LOG_E(TAG, "Cannot disconnect: handle 0x%04X not found", connection_handle);
         furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
         return false;
     }
@@ -996,6 +1109,29 @@ uint16_t gap_get_connection_handle(void) {
     uint16_t handle = gap->service.connection_handle;
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
     return handle;
+}
+
+uint16_t gap_get_connection_handle_by_role(bool central) {
+    furi_check(gap);
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+    uint16_t handle = 0;
+    for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+        if(gap->service.connections[i].active &&
+           gap->service.connections[i].is_central == central) {
+            handle = gap->service.connections[i].handle;
+            break;
+        }
+    }
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    return handle;
+}
+
+uint8_t gap_get_connection_count(void) {
+    furi_check(gap);
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+    uint8_t count = gap_active_connection_count();
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    return count;
 }
 
 void gap_set_pairing_method(uint32_t fixed_pin) {
