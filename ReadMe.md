@@ -126,6 +126,12 @@ KeeLoq shifted button position display for 12+ brands, full encode and decode fo
 
 ---
 
+## Companion Apps
+
+- **[Flipper File Transfer (Android)](https://github.com/KaraZajac/FlipperFileTransfer)** -- Send and receive files between your phone and Flipper Zero over BLE using L2CAP CoC (50-100 KB/s).
+
+---
+
 ## Build & Flash
 
 ```bash
