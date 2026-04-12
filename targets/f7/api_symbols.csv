@@ -669,10 +669,10 @@ Function,+,ble_event_dispatcher_unregister_svc_handler,void,GapSvcEventHandler*
 Function,+,ble_gatt_characteristic_delete,void,"uint16_t, BleGattCharacteristicInstance*"
 Function,+,ble_gatt_characteristic_init,void,"uint16_t, const BleGattCharacteristicParams*, BleGattCharacteristicInstance*"
 Function,+,ble_gatt_characteristic_update,_Bool,"uint16_t, BleGattCharacteristicInstance*, const void*"
+Function,+,ble_gatt_client_deinit,void,
 Function,+,ble_gatt_client_discover_characteristics,_Bool,"uint16_t, const BleGattService*"
 Function,+,ble_gatt_client_discover_services,_Bool,uint16_t
 Function,+,ble_gatt_client_exchange_mtu,_Bool,uint16_t
-Function,+,ble_gatt_client_deinit,void,
 Function,+,ble_gatt_client_init,void,
 Function,+,ble_gatt_client_read,_Bool,"uint16_t, uint16_t"
 Function,+,ble_gatt_client_set_callback,void,"BleGattClientCallback, void*"
