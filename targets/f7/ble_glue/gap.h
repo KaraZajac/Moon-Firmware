@@ -205,6 +205,61 @@ bool gap_set_phy_preference(uint16_t conn_handle, uint8_t tx_phy, uint8_t rx_phy
  */
 bool gap_get_phy(uint16_t conn_handle, uint8_t* tx_phy, uint8_t* rx_phy);
 
+/*
+ * Extended Advertising — up to 254 bytes of adv data, multiple simultaneous sets
+ * Requires BLE Full stack with EXT_ADV option enabled
+ */
+
+#define GAP_EXT_ADV_MAX_DATA_LEN 254
+#define GAP_EXT_ADV_MAX_SETS     4
+
+/* Advertising event properties (bitmask) */
+#define GAP_EXT_ADV_PROP_CONNECTABLE   0x0001
+#define GAP_EXT_ADV_PROP_SCANNABLE     0x0002
+#define GAP_EXT_ADV_PROP_LEGACY        0x0010
+#define GAP_EXT_ADV_PROP_INCLUDE_TX_PW 0x0040
+
+/** Configure an extended advertising set.
+ *  @param adv_handle         0x00-0xEF, identifies the set
+ *  @param adv_event_props    bitmask of GAP_EXT_ADV_PROP_*
+ *  @param interval_min       min interval in 0.625ms units (0x20 = 20ms minimum)
+ *  @param interval_max       max interval in 0.625ms units
+ *  @param secondary_phy      0x01=1M, 0x02=2M
+ *  @param adv_sid            0x00-0x0F
+ *  @return true if configured
+ */
+bool gap_ext_adv_configure(
+    uint8_t adv_handle,
+    uint16_t adv_event_props,
+    uint32_t interval_min,
+    uint32_t interval_max,
+    uint8_t secondary_phy,
+    uint8_t adv_sid);
+
+/** Set extended advertising data.
+ *  @param adv_handle   set handle
+ *  @param data         AD structure data
+ *  @param data_len     length (up to GAP_EXT_ADV_MAX_DATA_LEN)
+ *  @return true if data set
+ */
+bool gap_ext_adv_set_data(uint8_t adv_handle, const uint8_t* data, uint8_t data_len);
+
+/** Set extended scan response data. */
+bool gap_ext_adv_set_scan_resp(uint8_t adv_handle, const uint8_t* data, uint8_t data_len);
+
+/** Enable an extended advertising set.
+ *  @param adv_handle   set handle
+ *  @param duration_ms  duration in ms (0 = indefinite)
+ *  @return true if enabled
+ */
+bool gap_ext_adv_start(uint8_t adv_handle, uint16_t duration_ms);
+
+/** Stop an extended advertising set. */
+bool gap_ext_adv_stop(uint8_t adv_handle);
+
+/** Remove an extended advertising set. */
+bool gap_ext_adv_remove(uint8_t adv_handle);
+
 #ifdef __cplusplus
 }
 #endif

@@ -365,6 +365,51 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             }
         } break;
 
+        case HCI_LE_EXTENDED_ADVERTISING_REPORT_SUBEVT_CODE: {
+            GapScanCallback callback = gap->scan_callback;
+            void* scan_ctx = gap->scan_context;
+            if(callback) {
+                /* Extended advertising report — larger data, additional fields.
+                 * Wire format per report:
+                 * [0-1]  event_type (uint16)
+                 * [2]    address_type
+                 * [3-8]  address (6 bytes)
+                 * [9]    primary_phy
+                 * [10]   secondary_phy
+                 * [11]   advertising_sid
+                 * [12]   tx_power (int8)
+                 * [13]   rssi (int8)
+                 * [14-15] periodic_adv_interval (uint16)
+                 * [16]   direct_address_type
+                 * [17-22] direct_address (6 bytes)
+                 * [23]   data_length
+                 * [24..] data */
+                const uint8_t* raw = meta_evt->data;
+                uint8_t num_reports = raw[0];
+                const uint8_t* ptr = &raw[1];
+
+                furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+                for(uint8_t i = 0; i < num_reports; i++) {
+                    uint8_t addr_type = ptr[2];
+                    const uint8_t* address = &ptr[3];
+                    int8_t rssi = (int8_t)ptr[13];
+                    uint8_t data_len = ptr[23];
+                    const uint8_t* data = &ptr[24];
+
+                    GapScanResultData result = {
+                        .address_type = addr_type,
+                        .rssi = rssi,
+                        .data = data,
+                        .data_len = data_len,
+                    };
+                    memcpy(result.address, address, GAP_MAC_ADDR_SIZE);
+                    callback(&result, scan_ctx);
+                    ptr += 24 + data_len;
+                }
+                furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+            }
+        } break;
+
         default:
             break;
         }
@@ -1239,6 +1284,117 @@ bool gap_get_phy(uint16_t conn_handle, uint8_t* tx_phy, uint8_t* rx_phy) {
     tBleStatus status = hci_le_read_phy(conn_handle, tx_phy, rx_phy);
     if(status != BLE_STATUS_SUCCESS) {
         FURI_LOG_E(TAG, "Read PHY failed: 0x%02X", status);
+        return false;
+    }
+    return true;
+}
+
+/*
+ * Extended Advertising
+ */
+
+bool gap_ext_adv_configure(
+    uint8_t adv_handle,
+    uint16_t adv_event_props,
+    uint32_t interval_min,
+    uint32_t interval_max,
+    uint8_t secondary_phy,
+    uint8_t adv_sid) {
+    furi_check(gap);
+
+    uint8_t peer_addr[6] = {0};
+    tBleStatus status = aci_gap_adv_set_configuration(
+        0x00,                    // Adv_Mode: normal
+        adv_handle,
+        adv_event_props,
+        interval_min,
+        interval_max,
+        0x07,                    // All 3 advertising channels
+        CFG_IDENTITY_ADDRESS,    // Own_Address_Type
+        0x00,                    // Peer_Address_Type: public
+        peer_addr,               // Peer_Address: unused for non-directed
+        0x00,                    // Adv_Filter_Policy: process all
+        127,                     // Adv_TX_Power: no preference
+        0x00,                    // Secondary_Adv_Max_Skip
+        secondary_phy,
+        adv_sid,
+        0x00                     // Scan_Req_Notification: disabled
+    );
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Ext adv configure failed: 0x%02X", status);
+        return false;
+    }
+    FURI_LOG_I(TAG, "Ext adv set %d configured (props=0x%04X sid=%d)", adv_handle, adv_event_props, adv_sid);
+    return true;
+}
+
+bool gap_ext_adv_set_data(uint8_t adv_handle, const uint8_t* data, uint8_t data_len) {
+    furi_check(gap);
+    tBleStatus status = aci_gap_adv_set_adv_data(
+        adv_handle,
+        0x03,           // Operation: complete data
+        0x01,           // Fragment_Preference: don't fragment
+        data_len,
+        data);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Ext adv set data failed: 0x%02X", status);
+        return false;
+    }
+    return true;
+}
+
+bool gap_ext_adv_set_scan_resp(uint8_t adv_handle, const uint8_t* data, uint8_t data_len) {
+    furi_check(gap);
+    tBleStatus status = aci_gap_adv_set_scan_resp_data(
+        adv_handle,
+        0x03,           // Operation: complete data
+        0x01,           // Fragment_Preference: don't fragment
+        data_len,
+        data);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Ext adv set scan resp failed: 0x%02X", status);
+        return false;
+    }
+    return true;
+}
+
+bool gap_ext_adv_start(uint8_t adv_handle, uint16_t duration_ms) {
+    furi_check(gap);
+    Adv_Set_t adv_set = {
+        .Advertising_Handle = adv_handle,
+        .Duration = duration_ms / 10,  // Convert ms to 10ms units
+        .Max_Extended_Advertising_Events = 0,  // No max
+    };
+    tBleStatus status = aci_gap_adv_set_enable(0x01, 1, &adv_set);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Ext adv start failed: 0x%02X", status);
+        return false;
+    }
+    FURI_LOG_I(TAG, "Ext adv set %d started", adv_handle);
+    return true;
+}
+
+bool gap_ext_adv_stop(uint8_t adv_handle) {
+    furi_check(gap);
+    Adv_Set_t adv_set = {
+        .Advertising_Handle = adv_handle,
+        .Duration = 0,
+        .Max_Extended_Advertising_Events = 0,
+    };
+    tBleStatus status = aci_gap_adv_set_enable(0x00, 1, &adv_set);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Ext adv stop failed: 0x%02X", status);
+        return false;
+    }
+    FURI_LOG_I(TAG, "Ext adv set %d stopped", adv_handle);
+    return true;
+}
+
+bool gap_ext_adv_remove(uint8_t adv_handle) {
+    furi_check(gap);
+    tBleStatus status = aci_gap_adv_remove_set(adv_handle);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Ext adv remove failed: 0x%02X", status);
         return false;
     }
     return true;

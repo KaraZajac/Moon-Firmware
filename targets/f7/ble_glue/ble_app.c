@@ -68,7 +68,7 @@ static SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
         .max_tx_power = 0,
         .rx_model_config = 1,
         /* New stack (13.3->15.0) */
-        .max_adv_set_nbr = 1, // Only used if SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV is set
+        .max_adv_set_nbr = 4, // Extended advertising sets (up to GAP_EXT_ADV_MAX_SETS)
         .max_adv_data_len = 1650, // Only used if SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV is set
         .tx_path_compens = 0, // RF TX Path Compensation, * 0.1 dB
         .rx_path_compens = 0, // RF RX Path Compensation, * 0.1 dB
