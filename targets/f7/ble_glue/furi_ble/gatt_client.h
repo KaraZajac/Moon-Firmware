@@ -56,6 +56,7 @@ typedef struct {
             const uint8_t* data;
             uint16_t data_len;
             uint16_t value_handle;
+            uint16_t offset; // For extended notifications: bit 15 = first fragment
         } notification;
         struct {
             uint8_t error_code;

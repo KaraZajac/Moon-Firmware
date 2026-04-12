@@ -116,7 +116,7 @@ static BleEventAckStatus gatt_client_event_handler(void* pckt, void* context) {
     case ACI_GATT_NOTIFICATION_VSEVT_CODE: {
         aci_gatt_notification_event_rp0* resp =
             (aci_gatt_notification_event_rp0*)blue_evt->data;
-        FURI_LOG_D(TAG, "Raw notif: conn=0x%04X attr=0x%04X len=%d",
+        FURI_LOG_D(TAG, "Notif: conn=0x%04X attr=0x%04X len=%d",
             resp->Connection_Handle, resp->Attribute_Handle,
             resp->Attribute_Value_Length);
         BleGattClientEvent event = {
@@ -126,6 +126,26 @@ static BleEventAckStatus gatt_client_event_handler(void* pckt, void* context) {
                     .data = resp->Attribute_Value,
                     .data_len = resp->Attribute_Value_Length,
                     .value_handle = resp->Attribute_Handle,
+                },
+        };
+        gatt_client_callback(&event, gatt_client_context);
+    } break;
+
+    case ACI_GATT_NOTIFICATION_EXT_VSEVT_CODE: {
+        /* Extended notification — used when MTU > default and data
+         * exceeds the standard notification event buffer */
+        aci_gatt_notification_ext_event_rp0* resp =
+            (aci_gatt_notification_ext_event_rp0*)blue_evt->data;
+        FURI_LOG_D(TAG, "Notif EXT: off=0x%04X len=%d",
+            resp->Offset, resp->Attribute_Value_Length);
+        BleGattClientEvent event = {
+            .type = BleGattClientEventNotification,
+            .notification =
+                {
+                    .data = resp->Attribute_Value,
+                    .data_len = resp->Attribute_Value_Length,
+                    .value_handle = resp->Attribute_Handle,
+                    .offset = resp->Offset,
                 },
         };
         gatt_client_callback(&event, gatt_client_context);
@@ -219,6 +239,24 @@ void ble_gatt_client_init(void) {
     if(!gatt_client_handler) {
         gatt_client_handler = ble_event_dispatcher_register_svc_handler(
             gatt_client_event_handler, &gatt_client_sentinel);
+
+        /* Enable extended GATT events. CRITICAL: without this, notifications
+         * larger than 248 bytes arrive with Attribute_Value_Length=0 because
+         * the standard notification event buffer is too small. Enabling
+         * ACI_GATT_NOTIFICATION_EXT_EVENT lets the stack use the extended
+         * event format (0x0C1F) with uint16_t length and larger buffer. */
+        aci_gatt_set_event_mask(
+            0x00000001 | /* ACI_GATT_ATTRIBUTE_MODIFIED_EVENT */
+            0x00000004 | /* ACI_ATT_EXCHANGE_MTU_RESP_EVENT */
+            0x00000020 | /* ACI_ATT_READ_BY_TYPE_RESP_EVENT */
+            0x00000040 | /* ACI_ATT_READ_RESP_EVENT */
+            0x00000200 | /* ACI_ATT_READ_BY_GROUP_TYPE_RESP_EVENT */
+            0x00004000 | /* ACI_GATT_NOTIFICATION_EVENT */
+            0x00008000 | /* ACI_GATT_ERROR_RESP_EVENT */
+            0x00010000 | /* ACI_GATT_PROC_COMPLETE_EVENT */
+            0x00400000   /* ACI_GATT_NOTIFICATION_EXT_EVENT */
+        );
+        FURI_LOG_I(TAG, "GATT client init + extended events enabled");
     }
 }
 
