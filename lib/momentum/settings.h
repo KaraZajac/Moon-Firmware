@@ -105,6 +105,7 @@ typedef struct {
     ScreenFrameColor rpc_color_fg;
     ScreenFrameColor rpc_color_bg;
     uint32_t ble_max_connections; // 2-8, requires reboot to take effect
+    int32_t utc_offset_hours;    // -12 to +14, offset from local time to UTC
 } MomentumSettings;
 
 void momentum_settings_save(void);
