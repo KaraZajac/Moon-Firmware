@@ -68,14 +68,37 @@ The freed flash headroom accommodates the full BLE stack, the XIP region, and le
 
 ## Full BLE Stack
 
-Moon ships with the STM32WB55 BLE Full radio stack (`stm32wb5x_BLE_Stack_full_fw.bin`), which adds GAP Observer and Central roles on top of the Peripheral role used by stock firmware. This enables:
+Moon ships with the STM32WB55 BLE Full radio stack v1.20.0 (`stm32wb5x_BLE_Stack_full_fw.bin`), which adds GAP Observer and Central roles on top of the Peripheral role used by stock firmware.
 
-- **BLE scanning** -- Discover and enumerate nearby BLE devices
-- **GATT client** -- Connect to peripherals and read/write characteristics
-- **Multiple connections** -- Up to 8 simultaneous BLE connections
-- **Extra beacon advertising** -- Concurrent advertisement sets
+### Core Capabilities
 
-These capabilities are exposed to FAP applications through the existing Flipper BLE API.
+- **BLE scanning** -- Discover and enumerate nearby BLE devices (active + passive)
+- **GATT client** -- Connect to peripherals, discover services, read/write characteristics, subscribe to notifications
+- **Dual-role connections** -- Simultaneous central + peripheral on independent connection slots
+- **Configurable connection count** -- 2-8 simultaneous connections (Settings > Bluetooth > Max Connections)
+- **Custom GATT services** -- Register application-specific BLE services with custom UUIDs
+- **Extended notification events** -- Receive notifications larger than 248 bytes (up to MTU)
+
+### Extended Advertising
+
+- **254-byte advertisement data** -- vs 31 bytes on legacy advertising
+- **Multiple simultaneous advertisement sets** -- up to 4 independent sets with different data/intervals
+- **Secondary PHY selection** -- 1M or 2M PHY for advertisement data
+- **Extended scan reports** -- Scanner handles both legacy and extended advertising reports
+
+### PHY Preference API
+
+- **Explicit PHY selection** -- Request 1M or 2M PHY per connection via `gap_set_phy_preference()`
+- **PHY readback** -- Query current TX/RX PHY via `gap_get_phy()`
+- Note: STM32WB55 does NOT support LE Coded PHY (Long Range) -- hardware limitation
+
+### Planned
+
+- **Privacy / Resolvable Private Addresses** -- BLE address rotation for scanning privacy
+- **L2CAP Connection-Oriented Channels** -- High-throughput data streaming
+- **GATT Caching** -- Skip service discovery on reconnect for bonded devices
+
+All BLE capabilities are exposed to FAP applications through the firmware API.
 
 ---
 
