@@ -28,20 +28,15 @@ static void bt_settings_scene_start_var_list_change_callback(VariableItem* item)
     view_dispatcher_send_custom_event(app->view_dispatcher, index);
 }
 
+static uint32_t original_max_connections = 0;
+
 static void bt_settings_scene_start_max_connections_changed(VariableItem* item) {
+    UNUSED(item);
     uint8_t value = variable_item_get_current_value_index(item) + 2; // 2-8
     char str[4];
     snprintf(str, sizeof(str), "%d", value);
     variable_item_set_current_value_text(item, str);
-
-    if(value != momentum_settings.ble_max_connections) {
-        momentum_settings.ble_max_connections = value;
-        momentum_settings_save();
-
-        // Reboot required for BLE stack to reinitialize with new link count
-        Power* power = furi_record_open(RECORD_POWER);
-        power_reboot(power, PowerBootModeNormal);
-    }
+    momentum_settings.ble_max_connections = value;
 }
 
 static void bt_settings_scene_start_var_list_enter_callback(void* context, uint32_t index) {
@@ -57,6 +52,9 @@ void bt_settings_scene_start_on_enter(void* context) {
     BtSettingsApp* app = context;
     VariableItemList* var_item_list = app->var_item_list;
     VariableItem* item;
+
+    // Remember original value to detect changes on exit
+    original_max_connections = momentum_settings.ble_max_connections;
 
     if(furi_hal_bt_is_gatt_gap_supported()) {
         item = variable_item_list_add(
@@ -122,4 +120,11 @@ bool bt_settings_scene_start_on_event(void* context, SceneManagerEvent event) {
 void bt_settings_scene_start_on_exit(void* context) {
     BtSettingsApp* app = context;
     variable_item_list_reset(app->var_item_list);
+
+    // If max connections changed, save and reboot
+    if(momentum_settings.ble_max_connections != original_max_connections) {
+        momentum_settings_save();
+        Power* power = furi_record_open(RECORD_POWER);
+        power_reboot(power, PowerBootModeNormal);
+    }
 }
