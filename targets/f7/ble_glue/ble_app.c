@@ -9,6 +9,7 @@
 
 #include <furi_hal.h>
 #include <furi.h>
+#include <momentum/settings.h>
 
 #define TAG "Bt"
 
@@ -41,7 +42,7 @@ static const SHCI_C2_CONFIG_Cmd_Param_t config_param = {
     .EvtMask1 = SHCI_C2_CONFIG_EVTMASK1_BIT1_BLE_NVM_RAM_UPDATE_ENABLE,
 };
 
-static const SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
+static SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
     .Header = {{0, 0, 0}}, // Header unused
     .Param = {
         .pBleBufferAddress = 0, // pBleBufferAddress not used
@@ -83,6 +84,13 @@ bool ble_app_init(void) {
     // Allocate semafore and mutex for ble command buffer access
     ble_app->hci_mtx = furi_mutex_alloc(FuriMutexTypeNormal);
     ble_app->hci_sem = furi_semaphore_alloc(1, 0);
+
+    // Set runtime BLE connection count from user setting (2-8, default 2)
+    uint32_t max_conn = momentum_settings.ble_max_connections;
+    if(max_conn < 2) max_conn = 2;
+    if(max_conn > 8) max_conn = 8;
+    ble_init_cmd_packet.Param.NumOfLinks = max_conn;
+    FURI_LOG_I(TAG, "BLE max connections: %lu", max_conn);
 
     // Initialize Ble Transport Layer
     hci_init(ble_app_hci_event_handler, (void*)&hci_tl_config);

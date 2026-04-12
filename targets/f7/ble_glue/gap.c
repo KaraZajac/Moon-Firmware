@@ -16,7 +16,9 @@
 
 #define GAP_INTERVAL_TO_MS(x) (uint16_t)((x) * 1.25)
 
-#define GAP_MAX_CONNECTIONS 2
+/* Max connection slots — sized for CFG_BLE_NUM_LINK (8).
+ * Actual runtime limit set by momentum_settings.ble_max_connections */
+#define GAP_MAX_CONNECTIONS CFG_BLE_NUM_LINK
 
 typedef struct {
     uint16_t handle;
@@ -1211,4 +1213,33 @@ void gap_set_fixed_pin(uint32_t pin) {
     gap->fixed_pin = pin;
     FURI_LOG_I(TAG, "Fixed PIN %s", pin ? "set" : "cleared");
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+}
+
+/*
+ * PHY preference
+ */
+
+bool gap_set_phy_preference(uint16_t conn_handle, uint8_t tx_phy, uint8_t rx_phy) {
+    furi_check(gap);
+    /* ALL_PHYS=0x00: use provided TX/RX preferences
+     * PHY_options=0x0000: no coded PHY preference (not supported on STM32WB) */
+    tBleStatus status = hci_le_set_phy(conn_handle, 0x00, tx_phy, rx_phy, 0x0000);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Set PHY failed: 0x%02X", status);
+        return false;
+    }
+    FURI_LOG_I(TAG, "PHY preference set: TX=0x%02X RX=0x%02X", tx_phy, rx_phy);
+    return true;
+}
+
+bool gap_get_phy(uint16_t conn_handle, uint8_t* tx_phy, uint8_t* rx_phy) {
+    furi_check(gap);
+    furi_check(tx_phy);
+    furi_check(rx_phy);
+    tBleStatus status = hci_le_read_phy(conn_handle, tx_phy, rx_phy);
+    if(status != BLE_STATUS_SUCCESS) {
+        FURI_LOG_E(TAG, "Read PHY failed: 0x%02X", status);
+        return false;
+    }
+    return true;
 }

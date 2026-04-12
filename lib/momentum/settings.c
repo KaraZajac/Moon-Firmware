@@ -47,6 +47,7 @@ MomentumSettings momentum_settings = {
     .spoof_color = FuriHalVersionColorUnknown, // Real
     .rpc_color_fg = {{ScreenColorModeDefault, {.value = 0x000000}}}, // Default Black
     .rpc_color_bg = {{ScreenColorModeDefault, {.value = 0xFF8200}}}, // Default Orange
+    .ble_max_connections = 2, // 2
 };
 
 typedef enum {
@@ -121,6 +122,7 @@ static const struct {
     {setting_enum(spoof_color, FuriHalVersionColorCount)},
     {setting_uint(rpc_color_fg, 0x000000, 0xFFFFFF)},
     {setting_uint(rpc_color_bg, 0x000000, 0xFFFFFF)},
+    {setting_uint(ble_max_connections, 2, 8)},
 };
 
 void momentum_settings_load(void) {

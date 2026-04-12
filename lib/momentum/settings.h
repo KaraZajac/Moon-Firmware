@@ -104,6 +104,7 @@ typedef struct {
     FuriHalVersionColor spoof_color;
     ScreenFrameColor rpc_color_fg;
     ScreenFrameColor rpc_color_bg;
+    uint32_t ble_max_connections; // 2-8, requires reboot to take effect
 } MomentumSettings;
 
 void momentum_settings_save(void);

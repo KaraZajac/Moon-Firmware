@@ -179,6 +179,32 @@ void gap_set_pairing_method(uint32_t fixed_pin);
  */
 bool gap_pair(uint16_t connection_handle, bool force_rebond);
 
+/*
+ * PHY preference — request 1M or 2M PHY per connection
+ * Note: STM32WB55 does NOT support LE Coded PHY (Long Range)
+ */
+
+typedef enum {
+    GapPhy1M = 0x01,
+    GapPhy2M = 0x02,
+} GapPhy;
+
+/** Request PHY update for a connection.
+ *  @param conn_handle  connection handle
+ *  @param tx_phy       preferred TX PHY (GapPhy bitmask, 0 = no preference)
+ *  @param rx_phy       preferred RX PHY (GapPhy bitmask, 0 = no preference)
+ *  @return true if request sent
+ */
+bool gap_set_phy_preference(uint16_t conn_handle, uint8_t tx_phy, uint8_t rx_phy);
+
+/** Read current PHY for a connection.
+ *  @param conn_handle  connection handle
+ *  @param[out] tx_phy  current TX PHY
+ *  @param[out] rx_phy  current RX PHY
+ *  @return true if read succeeded
+ */
+bool gap_get_phy(uint16_t conn_handle, uint8_t* tx_phy, uint8_t* rx_phy);
+
 #ifdef __cplusplus
 }
 #endif

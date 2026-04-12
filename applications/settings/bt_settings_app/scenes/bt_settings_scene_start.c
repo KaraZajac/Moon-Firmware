@@ -1,5 +1,7 @@
 #include "../bt_settings_app.h"
 #include <furi_hal_bt.h>
+#include <power/power_service/power.h>
+#include <momentum/settings.h>
 
 enum BtSetting {
     BtSettingOff,
@@ -9,6 +11,7 @@ enum BtSetting {
 
 enum BtSettingIndex {
     BtSettingIndexSwitchBt,
+    BtSettingIndexMaxConnections,
     BtSettingIndexForgetDev,
 };
 
@@ -23,6 +26,22 @@ static void bt_settings_scene_start_var_list_change_callback(VariableItem* item)
 
     variable_item_set_current_value_text(item, bt_settings_text[index]);
     view_dispatcher_send_custom_event(app->view_dispatcher, index);
+}
+
+static void bt_settings_scene_start_max_connections_changed(VariableItem* item) {
+    uint8_t value = variable_item_get_current_value_index(item) + 2; // 2-8
+    char str[4];
+    snprintf(str, sizeof(str), "%d", value);
+    variable_item_set_current_value_text(item, str);
+
+    if(value != momentum_settings.ble_max_connections) {
+        momentum_settings.ble_max_connections = value;
+        momentum_settings_save();
+
+        // Reboot required for BLE stack to reinitialize with new link count
+        Power* power = furi_record_open(RECORD_POWER);
+        power_reboot(power, PowerBootModeNormal);
+    }
 }
 
 static void bt_settings_scene_start_var_list_enter_callback(void* context, uint32_t index) {
@@ -53,6 +72,22 @@ void bt_settings_scene_start_on_enter(void* context) {
             variable_item_set_current_value_index(item, BtSettingOff);
             variable_item_set_current_value_text(item, bt_settings_text[BtSettingOff]);
         }
+
+        // Max BLE Connections (2-8, requires reboot)
+        item = variable_item_list_add(
+            var_item_list,
+            "Max Connections",
+            7, // 7 options: 2,3,4,5,6,7,8
+            bt_settings_scene_start_max_connections_changed,
+            app);
+        uint32_t conn = momentum_settings.ble_max_connections;
+        if(conn < 2) conn = 2;
+        if(conn > 8) conn = 8;
+        variable_item_set_current_value_index(item, conn - 2);
+        char conn_str[4];
+        snprintf(conn_str, sizeof(conn_str), "%lu", conn);
+        variable_item_set_current_value_text(item, conn_str);
+
         variable_item_list_add(var_item_list, "Unpair All Devices", 1, NULL, NULL);
         variable_item_list_set_enter_callback(
             var_item_list, bt_settings_scene_start_var_list_enter_callback, app);
