@@ -36,7 +36,7 @@ static const BleGattCharacteristicParams ble_svc_serial_chars[SerialSvcGattChara
          .data.fixed.length = BLE_SVC_SERIAL_DATA_LEN_MAX,
          .uuid.Char_UUID_128 = BLE_SVC_SERIAL_TX_CHAR_UUID,
          .uuid_type = UUID_TYPE_128,
-         .char_properties = CHAR_PROP_READ | CHAR_PROP_INDICATE,
+         .char_properties = CHAR_PROP_READ | CHAR_PROP_NOTIFY,
          .security_permissions = ATTR_PERMISSION_AUTHEN_READ,
          .gatt_evt_mask = GATT_DONT_NOTIFY_EVENTS,
          .is_variable = CHAR_VALUE_LEN_VARIABLE},
@@ -237,7 +237,7 @@ bool ble_svc_serial_update_tx(BleServiceSerial* serial_svc, uint8_t* data, uint1
             0,
             serial_svc->svc_handle,
             serial_svc->chars[SerialSvcGattCharacteristicTx].handle,
-            remained ? 0x00 : 0x02,
+            remained ? 0x00 : 0x01, /* 0x01 = notification (was 0x02 = indication) */
             data_len,
             value_offset,
             value_len,
@@ -247,6 +247,15 @@ bool ble_svc_serial_update_tx(BleServiceSerial* serial_svc, uint8_t* data, uint1
             FURI_LOG_E(TAG, "Failed updating TX characteristic: %d", result);
             return false;
         }
+    }
+
+    /* Notifications are fire-and-forget — no ACK event from stack.
+     * Signal DataSent immediately so the RPC layer knows it can send more. */
+    if(serial_svc->callback) {
+        SerialServiceEvent event = {
+            .event = SerialServiceEventTypeDataSent,
+        };
+        serial_svc->callback(event, serial_svc->context);
     }
 
     return true;
