@@ -136,6 +136,11 @@ static bool gap_has_central_connection(void) {
     return false;
 }
 
+static bool gap_is_connection_central(uint16_t handle) {
+    GapConnectionSlot* slot = gap_find_connection(handle);
+    return slot ? slot->is_central : false;
+}
+
 static void gap_verify_connection_parameters(Gap* gap) {
     furi_check(gap);
 
@@ -212,7 +217,7 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             (hci_disconnection_complete_event_rp0*)event_pckt->data;
         uint16_t disc_handle = disconnection_complete_event->Connection_Handle;
         GapConnectionSlot* slot = gap_find_connection(disc_handle);
-        bool was_central = slot ? slot->is_central : gap->is_central;
+        bool was_central = slot ? slot->is_central : false;
 
         FURI_LOG_I(
             TAG, "Disconnect. Handle: 0x%04X Reason: %02X Role: %s",
@@ -225,10 +230,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         if(gap_active_connection_count() == 0) {
             gap->state = GapStateIdle;
             gap->is_secure = false;
-            gap->is_central = false;
         } else {
             // Still have another connection active — stay Connected
-            gap->is_central = gap_has_central_connection();
         }
         gap->negotiation_round = 0;
         furi_delay_us(666 + 666);
@@ -270,7 +273,7 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             } else {
                 FURI_LOG_I(TAG, "Update PHY succeed");
             }
-            ret = hci_le_read_phy(gap->service.connection_handle, &tx_phy, &rx_phy);
+            ret = hci_le_read_phy(evt_le_phy_update_complete->Connection_Handle, &tx_phy, &rx_phy);
             if(ret) {
                 FURI_LOG_E(TAG, "Read PHY failed, status: %d", ret);
             } else {
@@ -281,8 +284,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         case HCI_LE_CONNECTION_COMPLETE_SUBEVT_CODE: {
             hci_le_connection_complete_event_rp0* event =
                 (hci_le_connection_complete_event_rp0*)meta_evt->data;
-            bool is_central = (gap->state == GapStateConnecting ||
-                               gap->state == GapStateScanning);
+            // Use HCI Role field: 0x00=Central, 0x01=Peripheral (authoritative)
+            bool is_central = (event->Role == 0x00);
 
             FURI_LOG_I(
                 TAG,
@@ -305,7 +308,6 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
 
             gap->state = GapStateConnected;
-            gap->is_central = is_central;
 
             if(!is_central) {
                 /* Peripheral role: stop advertising timer but keep service available */
@@ -425,6 +427,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             break;
 
         case ACI_GAP_PASS_KEY_REQ_VSEVT_CODE: {
+            uint16_t pk_handle =
+                ((aci_gap_pass_key_req_event_rp0*)blue_evt->data)->Connection_Handle;
             uint32_t pin;
             if(gap->fixed_pin != 0) {
                 // Use app-provided fixed PIN
@@ -434,7 +438,7 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 // Generate random PIN code
                 pin = rand() % 999999; //-V1064
             }
-            aci_gap_pass_key_resp(gap->service.connection_handle, pin);
+            aci_gap_pass_key_resp(pk_handle, pin);
             if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagLock)) {
                 FURI_LOG_I(TAG, "Pass key request event. Pin: ******");
             } else {
@@ -476,12 +480,13 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             break;
 
         case ACI_GAP_NUMERIC_COMPARISON_VALUE_VSEVT_CODE: {
-            uint32_t pin =
-                ((aci_gap_numeric_comparison_value_event_rp0*)(blue_evt->data))->Numeric_Value;
+            aci_gap_numeric_comparison_value_event_rp0* nc_evt =
+                (aci_gap_numeric_comparison_value_event_rp0*)blue_evt->data;
+            uint32_t pin = nc_evt->Numeric_Value;
             FURI_LOG_I(TAG, "Verify numeric comparison: %06lu", pin);
             GapEvent event = {.type = GapEventTypePinCodeVerify, .data.pin_code = pin};
             bool result = gap->on_event_cb(event, gap->context);
-            aci_gap_numeric_comparison_value_confirm_yesno(gap->service.connection_handle, result);
+            aci_gap_numeric_comparison_value_confirm_yesno(nc_evt->Connection_Handle, result);
             break;
         }
 
@@ -492,10 +497,12 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                     TAG,
                     "Pairing failed with status: %d. Terminating connection",
                     pairing_complete->Status);
-                aci_gap_terminate(gap->service.connection_handle, 5);
+                aci_gap_terminate(pairing_complete->Connection_Handle, 5);
             } else {
-                FURI_LOG_I(TAG, "Pairing complete (central=%d)", gap->is_central);
-                if(!gap->is_central) {
+                bool pair_is_central = gap_is_connection_central(
+                    pairing_complete->Connection_Handle);
+                FURI_LOG_I(TAG, "Pairing complete (central=%d)", pair_is_central);
+                if(!pair_is_central) {
                     // Only notify BT service for peripheral connections (phone companion)
                     // Central connections (our app) handle pairing completion internally
                     GapEvent event = {.type = GapEventTypeConnected};
@@ -1127,7 +1134,6 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
 
     if(status == BLE_STATUS_SUCCESS) {
         gap->state = GapStateConnecting;
-        gap->is_central = true;
         FURI_LOG_I(
             TAG,
             "Connecting to %02X:%02X:%02X:%02X:%02X:%02X",
