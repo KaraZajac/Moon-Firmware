@@ -3,6 +3,7 @@
 #include <gui/elements.h>
 #include <assets_icons.h>
 #include <locale/locale.h>
+#include <momentum/settings.h>
 
 #define TAG "ClockSettingsModule"
 
@@ -16,6 +17,7 @@ typedef struct {
     DateTime alarm;
     bool alarm_enabled;
     bool editing;
+    int8_t utc_offset; /* -12 to +14 */
 
     uint8_t row;
     uint8_t column;
@@ -32,16 +34,19 @@ typedef enum {
          ((m)->editing ? EditStateActiveEditing : EditStateActive) : \
          EditStateNone)
 
-#define ROW_0_Y (4)
-#define ROW_0_H (20)
+#define ROW_0_Y (2)
+#define ROW_0_H (16)
 
-#define ROW_1_Y (30)
+#define ROW_1_Y (22)
 #define ROW_1_H (12)
 
-#define ROW_2_Y (48)
+#define ROW_2_Y (37)
 #define ROW_2_H (12)
 
-#define ROW_COUNT    3
+#define ROW_3_Y (52)
+#define ROW_3_H (12)
+
+#define ROW_COUNT    4
 #define COLUMN_COUNT 3
 
 static inline void clock_settings_module_cleanup_date(DateTime* dt) {
@@ -154,11 +159,29 @@ static void
         model->alarm_enabled ? "On" : "Off");
 }
 
+static void
+    clock_settings_module_draw_utc_callback(Canvas* canvas, ClockSettingsModuleViewModel* model) {
+    char buffer[16];
+
+    canvas_set_font(canvas, FontPrimary);
+    canvas_draw_str(canvas, 0, ROW_3_Y + 9, "UTC");
+
+    snprintf(buffer, sizeof(buffer), "%+d", model->utc_offset);
+    clock_settings_module_draw_block(
+        canvas, 58, ROW_3_Y, 30, ROW_3_H, FontPrimary, get_state(model, 3, 0), buffer);
+}
+
 static void clock_settings_module_draw_callback(Canvas* canvas, void* _model) {
     ClockSettingsModuleViewModel* model = _model;
     clock_settings_module_draw_time_callback(canvas, model);
     clock_settings_module_draw_date_callback(canvas, model);
     clock_settings_module_draw_alarm_callback(canvas, model);
+    clock_settings_module_draw_utc_callback(canvas, model);
+}
+
+static uint8_t clock_settings_module_column_count(uint8_t row) {
+    /* UTC row (row 3) has only 1 column */
+    return (row == 3) ? 1 : COLUMN_COUNT;
 }
 
 static bool clock_settings_module_input_navigation_callback(
@@ -171,7 +194,8 @@ static bool clock_settings_module_input_navigation_callback(
     } else if(event->key == InputKeyOk) {
         model->editing = !model->editing;
     } else if(event->key == InputKeyRight) {
-        if(model->column < COLUMN_COUNT - 1) model->column++;
+        uint8_t max_col = clock_settings_module_column_count(model->row) - 1;
+        if(model->column < max_col) model->column++;
     } else if(event->key == InputKeyLeft) {
         if(model->column > 0) model->column--;
     } else if(event->key == InputKeyBack && model->editing) {
@@ -179,6 +203,10 @@ static bool clock_settings_module_input_navigation_callback(
     } else {
         return false;
     }
+
+    /* Clamp column when switching rows */
+    uint8_t max_col = clock_settings_module_column_count(model->row) - 1;
+    if(model->column > max_col) model->column = max_col;
 
     return true;
 }
@@ -315,6 +343,20 @@ static bool clock_settings_module_input_alarm_callback(
     return true;
 }
 
+static bool clock_settings_module_input_utc_callback(
+    InputEvent* event,
+    ClockSettingsModuleViewModel* model) {
+    /* UTC row has only 1 column (the offset value) */
+    if(event->key == InputKeyUp) {
+        if(model->utc_offset < 14) model->utc_offset++;
+    } else if(event->key == InputKeyDown) {
+        if(model->utc_offset > -12) model->utc_offset--;
+    } else {
+        return clock_settings_module_input_navigation_callback(event, model);
+    }
+    return true;
+}
+
 static bool clock_settings_module_input_callback(InputEvent* event, void* context) {
     furi_assert(context);
 
@@ -334,6 +376,8 @@ static bool clock_settings_module_input_callback(InputEvent* event, void* contex
                         consumed = clock_settings_module_input_date_callback(event, model);
                     } else if(model->row == 2) {
                         consumed = clock_settings_module_input_alarm_callback(event, model);
+                    } else if(model->row == 3) {
+                        consumed = clock_settings_module_input_utc_callback(event, model);
                     } else {
                         furi_crash();
                     }
@@ -343,7 +387,13 @@ static bool clock_settings_module_input_callback(InputEvent* event, void* contex
 
                 // Switching between navigate/edit
                 if(model->editing != previous_editing) {
-                    if(model->row == 2) {
+                    if(model->row == 3) {
+                        if(!model->editing) {
+                            // Save UTC offset to momentum settings
+                            momentum_settings.utc_offset_hours = model->utc_offset;
+                            momentum_settings_save();
+                        }
+                    } else if(model->row == 2) {
                         if(!model->editing) {
                             // Disable alarm
                             furi_hal_rtc_set_alarm(NULL, false);
@@ -395,6 +445,7 @@ static void clock_settings_module_view_enter_callback(void* context) {
         {
             model->alarm = alarm;
             model->alarm_enabled = enabled;
+            model->utc_offset = (int8_t)momentum_settings.utc_offset_hours;
         },
         true);
 
