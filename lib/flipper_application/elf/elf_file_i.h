@@ -54,6 +54,7 @@ struct ELFFile {
 
     XipRegion xip_region;
     bool xip_disabled; /**< When true, skip XIP setup (used for plugins) */
+    bool xip_forced;   /**< When true, always use XIP even if app fits in RAM */
 
     ELFSection* preinit_array;
     ELFSection* init_array;

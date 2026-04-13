@@ -175,9 +175,35 @@ static FlipperApplicationPreloadStatus
         return FlipperApplicationPreloadStatusInvalidFile;
     }
 
+    // Load manifest section FIRST so we can check flags before section table loading.
+    // The section table load triggers elf_setup_xip(), which needs to know
+    // about ForceXIP before it runs.
+    if(!app->preloaded_manifest &&
+       elf_process_section(
+           app->elf, ".fapmeta", flipper_application_process_manifest_section, &app->manifest) !=
+           ElfProcessSectionResultSuccess) {
+        return FlipperApplicationPreloadStatusInvalidFile;
+    }
+
+    // Avoid preloading manifest twice, when user calls both preload_manifest() and preload()
+    if(!load_full) {
+        app->preloaded_manifest = true;
+    }
+
     // if we are loading full file
     if(load_full) {
-        // load section table
+        /* Auto-disable XIP for plugins. */
+        if(app->manifest.stack_size == 0) {
+            elf_file_disable_xip(app->elf);
+        }
+
+        /* Force XIP if the app requests it via manifest flag.
+         * Must be set BEFORE loading section table, which calls elf_setup_xip(). */
+        if(app->manifest.flags & FlipperApplicationFlagForceXIP) {
+            elf_file_force_xip(app->elf);
+        }
+
+        // load section table (this calls elf_setup_xip internally)
         ElfLoadSectionTableResult load_result = elf_file_load_section_table(app->elf);
         if(load_result == ElfLoadSectionTableResultError) {
             return FlipperApplicationPreloadStatusInvalidFile;
@@ -194,28 +220,6 @@ static FlipperApplicationPreloadStatus
                &preload_context) == ElfProcessSectionResultCannotProcess) {
             return FlipperApplicationPreloadStatusInvalidFile;
         }
-    }
-
-    // load manifest section
-    if(!app->preloaded_manifest &&
-       elf_process_section(
-           app->elf, ".fapmeta", flipper_application_process_manifest_section, &app->manifest) !=
-           ElfProcessSectionResultSuccess) {
-        return FlipperApplicationPreloadStatusInvalidFile;
-    }
-
-    // Avoid preloading manifest twice, when user calls both preload_manifest() and preload()
-    if(!load_full) {
-        app->preloaded_manifest = true;
-    }
-
-    /* Auto-disable XIP for plugins. Plugins are small (< 40 KB), always fit
-     * in RAM, and must not touch the XIP flash region owned by the main app.
-     * This catches ALL plugin loading paths (plugin_manager, nfc_supported_cards,
-     * and any future code) without requiring each caller to remember to call
-     * flipper_application_disable_xip(). */
-    if(load_full && app->manifest.stack_size == 0) {
-        elf_file_disable_xip(app->elf);
     }
 
     return flipper_application_validate_manifest(app);

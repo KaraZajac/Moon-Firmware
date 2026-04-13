@@ -883,6 +883,7 @@ ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface) 
     elf->fd = storage_file_alloc(storage);
     elf->api_interface = api_interface;
     elf->xip_disabled = false;
+    elf->xip_forced = false;
     ELFSectionDict_init(elf->sections);
     AddressCache_init(elf->trampoline_cache);
     elf->init_array_called = false;
@@ -893,6 +894,23 @@ ELFFile* elf_file_alloc(Storage* storage, const ElfApiInterface* api_interface) 
 void elf_file_disable_xip(ELFFile* elf) {
     furi_check(elf);
     elf->xip_disabled = true;
+}
+
+void elf_file_force_xip(ELFFile* elf) {
+    furi_check(elf);
+    elf->xip_forced = true;
+}
+
+uint32_t elf_file_get_xip_next_free(const ELFFile* elf) {
+    furi_check(elf);
+    if(!elf->xip_region.active) return 0;
+    return elf->xip_region.next_free;
+}
+
+uint32_t elf_file_get_xip_end(const ELFFile* elf) {
+    furi_check(elf);
+    if(!elf->xip_region.active) return 0;
+    return elf->xip_region.end_addr;
 }
 
 void elf_file_free(ELFFile* elf) {
@@ -1102,7 +1120,7 @@ static void elf_setup_xip(ELFFile* elf) {
 
     size_t ram_needed = remaining_alloc_size + 32768; /* 32KB margin for fragmentation */
 
-    if(ram_needed <= max_block) {
+    if(ram_needed <= max_block && !elf->xip_forced) {
         FURI_LOG_I(
             TAG,
             "App fits in RAM (%zu bytes, %zu available) — skipping XIP",
@@ -1111,6 +1129,10 @@ static void elf_setup_xip(ELFFile* elf) {
         /* Don't initialize XIP — all sections will be loaded to RAM */
         memset(&elf->xip_region, 0, sizeof(XipRegion));
         return;
+    }
+
+    if(elf->xip_forced) {
+        FURI_LOG_I(TAG, "XIP forced by app (%zu bytes code)", remaining_alloc_size);
     }
 
     xip_region_init(&elf->xip_region);

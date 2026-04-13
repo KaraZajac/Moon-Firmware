@@ -13,6 +13,7 @@ _MANIFEST_MAGIC = 0x52474448
 class ElfManifestFlag(IntFlag):
     Default = 0
     InsomniaSafe = 1 << 0
+    ForceXIP = 1 << 1
 
     UnloadAssetPacks = 1 << 7
 

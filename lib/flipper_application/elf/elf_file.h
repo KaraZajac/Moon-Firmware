@@ -73,6 +73,30 @@ void elf_file_free(ELFFile* elf_file);
 void elf_file_disable_xip(ELFFile* elf_file);
 
 /**
+ * @brief Force XIP for this ELF instance even if app fits in RAM.
+ * Useful for apps that need maximum heap space at runtime.
+ * Call after alloc but before loading section table.
+ * @param elf_file
+ */
+void elf_file_force_xip(ELFFile* elf_file);
+
+/**
+ * @brief Get the next free address in the XIP region after app sections.
+ * Apps can write data (e.g. ROM images) to flash starting at this address.
+ * Returns 0 if XIP is not active.
+ * @param elf_file
+ * @return flash address or 0
+ */
+uint32_t elf_file_get_xip_next_free(const ELFFile* elf_file);
+
+/**
+ * @brief Get the end address of the XIP region.
+ * @param elf_file
+ * @return flash end address or 0
+ */
+uint32_t elf_file_get_xip_end(const ELFFile* elf_file);
+
+/**
  * @brief Open ELF file
  * @param elf_file 
  * @param path 
