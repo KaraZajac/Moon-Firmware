@@ -6,7 +6,7 @@
 
 #include <locale/locale.h>
 #include <storage/storage.h>
-#include <momentum/settings.h>
+#include <moon/settings.h>
 
 #include <assets_icons.h>
 
@@ -93,7 +93,7 @@ static void desktop_clock_draw_callback(Canvas* canvas, void* context) {
             hour -= 12;
         }
         if(hour == 0) {
-            hour = momentum_settings.midnight_format_00 ? 0 : 12;
+            hour = moon_settings.midnight_format_00 ? 0 : 12;
         }
     }
 
@@ -400,12 +400,12 @@ void desktop_lock(Desktop* desktop, bool with_pin) {
     }
 
     if(with_pin) {
-        if(!momentum_settings.allow_locked_rpc_usb) {
+        if(!moon_settings.allow_locked_rpc_usb) {
             CliVcp* cli_vcp = furi_record_open(RECORD_CLI_VCP);
             cli_vcp_disable(cli_vcp);
             furi_record_close(RECORD_CLI_VCP);
         }
-        if(!momentum_settings.allow_locked_rpc_ble) {
+        if(!moon_settings.allow_locked_rpc_ble) {
             Bt* bt = furi_record_open(RECORD_BT);
             bt_close_rpc_connection(bt);
             furi_record_close(RECORD_BT);
@@ -438,12 +438,12 @@ void desktop_unlock(Desktop* desktop) {
     furi_hal_rtc_set_pin_fails(0);
 
     if(with_pin) {
-        if(!momentum_settings.allow_locked_rpc_usb) {
+        if(!moon_settings.allow_locked_rpc_usb) {
             CliVcp* cli_vcp = furi_record_open(RECORD_CLI_VCP);
             cli_vcp_enable(cli_vcp);
             furi_record_close(RECORD_CLI_VCP);
         }
-        if(!momentum_settings.allow_locked_rpc_ble) {
+        if(!moon_settings.allow_locked_rpc_ble) {
             Bt* bt = furi_record_open(RECORD_BT);
             bt_open_rpc_connection(bt);
             furi_record_close(RECORD_BT);
@@ -566,8 +566,8 @@ int32_t desktop_srv(void* p) {
 
     bool enable_cli_vcp = true;
     if(desktop_pin_code_is_set() &&
-       (momentum_settings.lock_on_boot || furi_hal_rtc_is_flag_set(FuriHalRtcFlagLock))) {
-        enable_cli_vcp = momentum_settings.allow_locked_rpc_usb;
+       (moon_settings.lock_on_boot || furi_hal_rtc_is_flag_set(FuriHalRtcFlagLock))) {
+        enable_cli_vcp = moon_settings.allow_locked_rpc_usb;
         desktop_lock(desktop, true);
     }
     if(enable_cli_vcp) {

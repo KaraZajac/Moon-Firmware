@@ -1,7 +1,7 @@
 #include "../bt_settings_app.h"
 #include <furi_hal_bt.h>
 #include <power/power_service/power.h>
-#include <momentum/settings.h>
+#include <moon/settings.h>
 
 enum BtSetting {
     BtSettingOff,
@@ -37,7 +37,7 @@ static void bt_settings_scene_start_max_connections_changed(VariableItem* item) 
     char str[4];
     snprintf(str, sizeof(str), "%d", value);
     variable_item_set_current_value_text(item, str);
-    momentum_settings.ble_max_connections = value;
+    moon_settings.ble_max_connections = value;
 }
 
 static void bt_settings_scene_start_utc_offset_changed(VariableItem* item) {
@@ -45,7 +45,7 @@ static void bt_settings_scene_start_utc_offset_changed(VariableItem* item) {
     char str[8];
     snprintf(str, sizeof(str), "UTC%+ld", (long)value);
     variable_item_set_current_value_text(item, str);
-    momentum_settings.utc_offset_hours = value;
+    moon_settings.utc_offset_hours = value;
 }
 
 static void bt_settings_scene_start_var_list_enter_callback(void* context, uint32_t index) {
@@ -63,7 +63,7 @@ void bt_settings_scene_start_on_enter(void* context) {
     VariableItem* item;
 
     // Remember original value to detect changes on exit
-    original_max_connections = momentum_settings.ble_max_connections;
+    original_max_connections = moon_settings.ble_max_connections;
 
     if(furi_hal_bt_is_gatt_gap_supported()) {
         item = variable_item_list_add(
@@ -87,7 +87,7 @@ void bt_settings_scene_start_on_enter(void* context) {
             7, // 7 options: 2,3,4,5,6,7,8
             bt_settings_scene_start_max_connections_changed,
             app);
-        uint32_t conn = momentum_settings.ble_max_connections;
+        uint32_t conn = moon_settings.ble_max_connections;
         if(conn < 2) conn = 2;
         if(conn > 8) conn = 8;
         variable_item_set_current_value_index(item, conn - 2);
@@ -102,7 +102,7 @@ void bt_settings_scene_start_on_enter(void* context) {
             27, // -12 to +14 = 27 values
             bt_settings_scene_start_utc_offset_changed,
             app);
-        int32_t utc_off = momentum_settings.utc_offset_hours;
+        int32_t utc_off = moon_settings.utc_offset_hours;
         if(utc_off < -12) utc_off = -12;
         if(utc_off > 14) utc_off = 14;
         variable_item_set_current_value_index(item, utc_off + 12);
@@ -146,10 +146,10 @@ void bt_settings_scene_start_on_exit(void* context) {
     variable_item_list_reset(app->var_item_list);
 
     // Always save settings (UTC offset may have changed)
-    momentum_settings_save();
+    moon_settings_save();
 
     // If max connections changed, reboot required
-    if(momentum_settings.ble_max_connections != original_max_connections) {
+    if(moon_settings.ble_max_connections != original_max_connections) {
         Power* power = furi_record_open(RECORD_POWER);
         power_reboot(power, PowerBootModeNormal);
     }

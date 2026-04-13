@@ -56,9 +56,9 @@ if __name__ == "__main__":
             color = 9471191
             version_tag = event["release"]["tag_name"]
             title = f"New Release: `{version_tag}`!"
-            desc += f"> 💻 [**Web Installer**](https://momentum-fw.dev/update?version={version_tag})\n\n"
-            desc += f"> 🐬 [**Changelog & Download**](https://github.com/Next-Flip/Momentum-Firmware/releases/tag/{version_tag})\n\n"
-            desc += f"> 🛞 [**Project Page**](https://github.com/Next-Flip/Momentum-Firmware)"
+            desc += f"> 💻 [**Web Installer**](https://moon-fw.dev/update?version={version_tag})\n\n"
+            desc += f"> 🐬 [**Changelog & Download**](https://github.com/KaraZajac/Moon-Firmware/releases/tag/{version_tag})\n\n"
+            desc += f"> 🛞 [**Project Page**](https://github.com/KaraZajac/Moon-Firmware)"
 
         case "workflow_run":
             run = event["workflow_run"]

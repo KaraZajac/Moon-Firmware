@@ -4,7 +4,7 @@ When installing firmware with WebUpdater, Flipper Lab, or Flipper Mobile App, `/
 This file has information on allowed frequencies for country you are located in. When this is not present, SubGHz app will say "Region in not provisioned" when transmitting.
 
 On Official Firmware, SubGHz app does not open when region not provisioned, and also receiving is not allowed if frequency is not allowed in your region.
-On Momentum Firmware, SubGHz app does not restrict receiving in any way, only transmit. If transmit not allowed, it will tell you why and explain what to do. Here is more info:
+On Moon Firmware, SubGHz app does not restrict receiving in any way, only transmit. If transmit not allowed, it will tell you why and explain what to do. Here is more info:
 - Region in not provisioned: `/int/.region_data` not found, update/reinstall firmware using WebUpdater, Flipper Lab, or Flipper Mobile App
 - Frequency outside of region range: not allowed in your country, you can use Bypass Region (read below)
 - Frequency outside of default range: not officially supported by Flipper, you can use Extend bands (READ BELOW!!!!)
@@ -18,7 +18,7 @@ This setting will unlock whole CC1101 Frequency range specifications, regardless
 
 You can also do this when "Region is not provisioned", but this is discouraged: it is possible that frequency is allowed for you, the error means "I don't know what is allowed or not" because `/int/.region_data` file is missing. Better to update/reinstall firmware. But if this is not possible, Bypass Region works too.
 
-You can enable in `Momentum > Protocols > SubGHz Bypass Region Lock`.
+You can enable in `Moon > Protocols > SubGHz Bypass Region Lock`.
 
 ## How to extend SubGHz supported frequency range
 
@@ -28,6 +28,6 @@ You can enable in `Momentum > Protocols > SubGHz Bypass Region Lock`.
 1. Please do not do that unless you know what exactly you are doing
 2. You don't need extended range for almost all use cases
 3. Extending frequency range and transmitting on frequencies that outside of hardware specs can damage your hardware!
-4. Flipper Devices team and/or Momentum FW developers are not responsible for any damage that can be caused by using CFW or extending frequency ranges!!!
+4. Flipper Devices team and/or Moon FW developers are not responsible for any damage that can be caused by using CFW or extending frequency ranges!!!
 
-If you really sure you need that change, enable in `Momentum > Protocols > SubGHz Extend Freq Bands`.
+If you really sure you need that change, enable in `Moon > Protocols > SubGHz Extend Freq Bands`.

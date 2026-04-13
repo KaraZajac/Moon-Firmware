@@ -3,7 +3,7 @@
 #include <gui/elements.h>
 #include <assets_icons.h>
 #include <locale/locale.h>
-#include <momentum/settings.h>
+#include <moon/settings.h>
 
 #define TAG "ClockSettingsModule"
 
@@ -389,9 +389,9 @@ static bool clock_settings_module_input_callback(InputEvent* event, void* contex
                 if(model->editing != previous_editing) {
                     if(model->row == 3) {
                         if(!model->editing) {
-                            // Save UTC offset to momentum settings
-                            momentum_settings.utc_offset_hours = model->utc_offset;
-                            momentum_settings_save();
+                            // Save UTC offset to moon settings
+                            moon_settings.utc_offset_hours = model->utc_offset;
+                            moon_settings_save();
                         }
                     } else if(model->row == 2) {
                         if(!model->editing) {
@@ -445,7 +445,7 @@ static void clock_settings_module_view_enter_callback(void* context) {
         {
             model->alarm = alarm;
             model->alarm_enabled = enabled;
-            model->utc_offset = (int8_t)momentum_settings.utc_offset_hours;
+            model->utc_offset = (int8_t)moon_settings.utc_offset_hours;
         },
         true);
 

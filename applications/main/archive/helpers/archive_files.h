@@ -5,7 +5,7 @@
 #include <m-algo.h>
 #include <storage/storage.h>
 #include "toolbox/path.h"
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #define FAP_MANIFEST_MAX_ICON_SIZE 32
 
@@ -93,7 +93,7 @@ static void ArchiveFile_t_clear(ArchiveFile_t* obj) {
 }
 
 static int ArchiveFile_t_cmp(const ArchiveFile_t* a, const ArchiveFile_t* b) {
-    if(momentum_settings.sort_dirs_first) {
+    if(moon_settings.sort_dirs_first) {
         if(a->type == ArchiveFileTypeFolder && b->type != ArchiveFileTypeFolder) {
             return -1;
         }

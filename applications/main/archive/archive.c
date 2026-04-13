@@ -153,7 +153,7 @@ int32_t archive_app(void* p) {
             archive->browser->path,
             archive_get_tab_ext(ArchiveTabBrowser),
             false,
-            !momentum_settings.show_hidden_files,
+            !moon_settings.show_hidden_files,
             furi_string_get_cstr(path));
     }
 

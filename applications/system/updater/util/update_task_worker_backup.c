@@ -13,7 +13,7 @@
 #include <toolbox/tar/tar_archive.h>
 #include <toolbox/crc32_calc.h>
 
-#define FIRSTBOOT_FLAG_PATH INT_PATH(".momentum_firstboot.flag")
+#define FIRSTBOOT_FLAG_PATH INT_PATH(".moon_firstboot.flag")
 
 #define TAG "UpdWorkerBackup"
 
@@ -166,7 +166,7 @@ static bool update_task_post_update(UpdateTask* update_task) {
                 FIRSTBOOT_FLAG_PATH);
             storage_common_rename(
                 update_task->storage,
-                EXT_PATH(".config/momentum_firstboot.flag"), // Migrate to int on ext
+                EXT_PATH(".config/moon_firstboot.flag"), // Migrate to int on ext
                 FIRSTBOOT_FLAG_PATH);
             if(storage_common_stat(update_task->storage, FIRSTBOOT_FLAG_PATH, NULL) ==
                FSE_NOT_EXIST) {

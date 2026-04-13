@@ -1,13 +1,13 @@
 {
-  "name": "@next-flip/create-fz-app-mntm",
+  "name": "@KaraZajac/create-fz-app-moon",
   "version": "0.1.2",
-  "description": "Template package for JS apps for Flipper Zero using Momentum Custom Firmware JS SDK",
+  "description": "Template package for JS apps for Flipper Zero using Moon Custom Firmware JS SDK",
   "bin": "index.js",
   "type": "module",
   "keywords": [
-    "momentum",
-    "momentum firmware",
-    "next-flip",
+    "moon",
+    "moon firmware",
+    "KaraZajac",
     "flipper",
     "flipper zero"
   ],
@@ -15,7 +15,7 @@
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Next-Flip/Momentum-Firmware.git",
+    "url": "git+https://github.com/KaraZajac/Moon-Firmware.git",
     "directory": "applications/system/js_app/packages/create-fz-app"
   },
   "dependencies": {

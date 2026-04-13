@@ -31,7 +31,7 @@
 - OFW: RFID: Add Indala 224-bit (long format) protocol support (by @kuzaxak)
 - UL: JS: Add IR capabilities to the JS engine (by @LuisMayo)
 - FBT: Allow apps to specify custom cflags (by @WillyJL)
-- UL: Docs: Add [full list of supported SubGHz protocols](https://github.com/Next-Flip/Momentum-Firmware/blob/dev/documentation/SubGHzSupportedSystems.md) and their frequencies/modulations that can be used for reading remotes (by @xMasterX)
+- UL: Docs: Add [full list of supported SubGHz protocols](https://github.com/Next-Flip/Moon-Firmware/blob/dev/documentation/SubGHzSupportedSystems.md) and their frequencies/modulations that can be used for reading remotes (by @xMasterX)
 
 ### Updated:
 - Apps:
@@ -94,5 +94,5 @@
 ### Removed:
 - Sub-GHz:
   - Removed Starline, ScherKhan and Kia protocols from main Sub-GHz app, they can be decoded with `Apps > Sub-GHz > ProtoPirate` external app
-  - Disabled X10 and Hormann Bisecur protocols due to flash space constraints and very limited usefulness, Momentum now has same protocol list as Unleashed
+  - Disabled X10 and Hormann Bisecur protocols due to flash space constraints and very limited usefulness, Moon now has same protocol list as Unleashed
 - Desktop: Removed winter holidays anims

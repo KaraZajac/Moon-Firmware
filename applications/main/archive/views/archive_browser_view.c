@@ -68,11 +68,11 @@ static void archive_update_formatted_path(ArchiveBrowserViewModel* model) {
         return;
     }
 
-    if(momentum_settings.browser_path_mode == BrowserPathOff || archive_is_home(browser)) {
+    if(moon_settings.browser_path_mode == BrowserPathOff || archive_is_home(browser)) {
         furi_string_set(browser->formatted_path, ArchiveTabNames[model->tab_idx]);
     } else {
         const char* path = furi_string_get_cstr(browser->path);
-        switch(momentum_settings.browser_path_mode) {
+        switch(moon_settings.browser_path_mode) {
         case BrowserPathFull:
             furi_string_set(browser->formatted_path, browser->path);
             break;
@@ -327,7 +327,7 @@ static void draw_list(Canvas* canvas, ArchiveBrowserViewModel* model) {
         draw_list_item(canvas, model, scrollbar, i, idx);
     }
 
-    if(momentum_settings.popup_overlay && model->menu) {
+    if(moon_settings.popup_overlay && model->menu) {
         canvas_draw_overlay(canvas);
     }
 

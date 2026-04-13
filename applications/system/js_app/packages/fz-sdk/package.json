@@ -1,11 +1,11 @@
 {
-  "name": "@next-flip/fz-sdk-mntm",
+  "name": "@KaraZajac/fz-sdk-moon",
   "version": "1.0.0",
-  "description": "Type declarations and documentation for native JS modules available on Momentum Custom Firmware for Flipper Zero",
+  "description": "Type declarations and documentation for native JS modules available on Moon Custom Firmware for Flipper Zero",
   "keywords": [
-    "momentum",
-    "momentum firmware",
-    "next-flip",
+    "moon",
+    "moon firmware",
+    "KaraZajac",
     "flipper",
     "flipper zero",
     "framework"
@@ -14,7 +14,7 @@
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Next-Flip/Momentum-Firmware.git",
+    "url": "git+https://github.com/KaraZajac/Moon-Firmware.git",
     "directory": "applications/system/js_app/packages/fz-sdk"
   },
   "type": "module",

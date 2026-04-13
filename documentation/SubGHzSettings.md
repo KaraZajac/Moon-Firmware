@@ -4,7 +4,7 @@
 
 ### From Flipper
 
-On Momentum Firmware, you can add manage frequencies list from Flipper from `Momentum > Protocols > SubGHz Freqs`:
+On Moon Firmware, you can add manage frequencies list from Flipper from `Moon > Protocols > SubGHz Freqs`:
 - Use Defaults: whether to include default frequency list, if yes your custom frequencies go at END of default list
 - Static Freqs: list used by `Read`, `Read RAW` and `Frequency Analyzer`
 - Hopper Freqs: list used by `Read > Config > Hopping: ON`

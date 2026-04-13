@@ -10,7 +10,7 @@
 #include "animation_storage.h"
 #include <assets_dolphin_internal.h>
 #include <assets_dolphin_blocking.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #define TAG "AnimationStorage"
 
@@ -26,10 +26,10 @@ static BubbleAnimation* animation_storage_load_animation(const char* name);
 void animation_handler_select_manifest() {
     FuriString* anim_dir = furi_string_alloc();
     FuriString* manifest = furi_string_alloc();
-    bool use_asset_pack = momentum_settings.asset_pack[0] != '\0';
+    bool use_asset_pack = moon_settings.asset_pack[0] != '\0';
     if(use_asset_pack) {
         furi_string_printf(
-            anim_dir, "%s/%s/Anims", ASSET_PACKS_PATH, momentum_settings.asset_pack);
+            anim_dir, "%s/%s/Anims", ASSET_PACKS_PATH, moon_settings.asset_pack);
         furi_string_printf(manifest, "%s/manifest.txt", furi_string_get_cstr(anim_dir));
         Storage* storage = furi_record_open(RECORD_STORAGE);
         if(storage_common_stat(storage, furi_string_get_cstr(manifest), NULL) == FSE_OK) {
@@ -511,7 +511,7 @@ static BubbleAnimation* animation_storage_load_animation(const char* name) {
         if(!flipper_format_read_uint32(ff, "Active cycles", &u32value, 1)) break; //-V779
         animation->active_cycles = u32value;
         if(!flipper_format_read_uint32(ff, "Frame rate", &u32value, 1)) break;
-        uint32_t anim_speed = momentum_settings.anim_speed;
+        uint32_t anim_speed = moon_settings.anim_speed;
         u32value = (u32value * anim_speed) / 100;
         FURI_CONST_ASSIGN(animation->icon_animation.frame_rate, u32value < 1 ? 1 : u32value);
         if(!flipper_format_read_uint32(ff, "Duration", &u32value, 1)) break;

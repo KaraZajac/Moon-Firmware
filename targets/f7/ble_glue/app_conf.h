@@ -40,7 +40,7 @@
  * Maximum number of simultaneous connections that the device will support.
  * Valid values are from 1 to 8
  * Set to max for compile-time buffer allocation; actual runtime value
- * comes from momentum_settings.ble_max_connections (default 2)
+ * comes from moon_settings.ble_max_connections (default 2)
  */
 #define CFG_BLE_NUM_LINK 8
 

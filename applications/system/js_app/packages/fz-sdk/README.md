@@ -1,12 +1,12 @@
-# Momentum FW JavaScript SDK
+# Moon FW JavaScript SDK
 This package contains tooling and typings for developing Flipper Zero
-applications in JavaScript for Momentum Custom Firmware.
+applications in JavaScript for Moon Custom Firmware.
 
 This is a fork of the [Official Flipper Zero JS SDK](https://www.npmjs.com/package/@flipperdevices/fz-sdk),
-with added types for the extra features provided by the Momentum JavaScript API.
+with added types for the extra features provided by the Moon JavaScript API.
 
-Scripts made for Official Flipper Zero JS SDK will work on Momentum Firmware too.
-If you use extra features provided by Momentum, you are encouraged to use syntax like
+Scripts made for Official Flipper Zero JS SDK will work on Moon Firmware too.
+If you use extra features provided by Moon, you are encouraged to use syntax like
 `if (doesSdkSupport(["feature-name"])) { ... }` so that your JS app can work on Official
 Firmware too, aswell as all other compliant Custom Firmwares. If some of those extra
 features are essential to the functionality of your app, you can use `checkSdkFeatures(["feature1", "feature2"])`

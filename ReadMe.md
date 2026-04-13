@@ -7,28 +7,28 @@
 </p>
 
 <p align="center">
-  A hard fork of <a href="https://github.com/Next-Flip/Momentum-Firmware">Momentum Firmware</a> for Flipper Zero.
+  A hard fork of <a href="https://github.com/Next-Flip/Moon-Firmware">Moon Firmware</a> for Flipper Zero.
 </p>
 
-> **This firmware is experimental.** It may contain bugs, cause unexpected behavior, or require manual recovery. Use at your own risk. Always keep a known-good firmware (Momentum or stock) available for recovery.
+> **This firmware is experimental.** It may contain bugs, cause unexpected behavior, or require manual recovery. Use at your own risk. Always keep a known-good firmware (Moon or stock) available for recovery.
 
 ---
 
 ## What is Moon?
 
-Moon is a hard fork of Momentum Firmware that makes two fundamental architectural changes to the Flipper Zero platform:
+Moon is a hard fork of Moon Firmware that makes two fundamental architectural changes to the Flipper Zero platform:
 
 1. **Full BLE Stack** -- Replaces the BLE Light radio stack with BLE Full, enabling BLE central/scanning, GATT client, and up to 8 simultaneous connections. This unlocks capabilities like BLE device scanning, active GATT enumeration, and peripheral interaction that aren't possible on the Light stack.
 
 2. **Execute-in-Place (XIP) Flash Loading** -- A custom loader that runs application code directly from internal flash instead of RAM. This allows every user-facing application to run as an external FAP from the SD card, including large apps like Sub-GHz (247 KB) and NFC (183 KB) that would never fit in the Flipper's ~128 KB of available heap.
 
-All Momentum features, customization options, and community apps are included.
+All Moon features, customization options, and community apps are included.
 
 ---
 
 ## Execute-in-Place (XIP)
 
-The Flipper Zero has 1 MB of internal flash but only ~128 KB of free RAM for applications. Stock and Momentum firmware compile large protocol libraries (Sub-GHz, NFC, etc.) directly into the firmware binary, consuming flash permanently and limiting what can be changed without a full firmware update.
+The Flipper Zero has 1 MB of internal flash but only ~128 KB of free RAM for applications. Stock and Moon firmware compile large protocol libraries (Sub-GHz, NFC, etc.) directly into the firmware binary, consuming flash permanently and limiting what can be changed without a full firmware update.
 
 Moon takes a different approach: all protocol libraries are compiled into their respective FAP applications on the SD card, and a **300 KB XIP region** in free internal flash is used to execute them in place.
 
@@ -57,7 +57,7 @@ The XIP region includes a cache header with file size, CRC32, and API version. W
 
 Moving protocol libraries out of firmware and into apps reduces the firmware binary significantly:
 
-| | Momentum (dev) | Moon | Saved |
+| | Moon (dev) | Moon | Saved |
 |---|---|---|---|
 | `firmware.bin` | ~877 KB | ~496 KB | **~381 KB** |
 | Free internal flash | ~172 KB | ~528 KB | **+356 KB** |
@@ -148,17 +148,17 @@ For SD card updates, copy the output directory (`dist/f7-C/f7-update-*`) to the 
 If the device boot-loops or becomes unresponsive after a failed update:
 
 1. Enter DFU mode -- hold **LEFT + BACK** while plugging in USB
-2. Flash a clean Momentum firmware via [qFlipper](https://flipperzero.one/update)
-3. Once Momentum boots, re-apply Moon via the SD card update package
+2. Flash a clean Moon firmware via [qFlipper](https://flipperzero.one/update)
+3. Once Moon boots, re-apply Moon via the SD card update package
 
 ---
 
 ## Base
 
-Built on [Momentum Firmware](https://github.com/Next-Flip/Momentum-Firmware), which is built on [Official Flipper Zero Firmware](https://github.com/flipperdevices/flipperzero-firmware).
+Built on [Moon Firmware](https://github.com/Next-Flip/Moon-Firmware), which is built on [Official Flipper Zero Firmware](https://github.com/flipperdevices/flipperzero-firmware).
 
 ---
 
 ### Disclaimer
 
-*This firmware is provided as-is for educational and research purposes only. It is not affiliated with, endorsed by, or supported by Flipper Devices, the Momentum Firmware project, or any vehicle manufacturer. The authors assume no responsibility for any damage to hardware, loss of data, or legal consequences resulting from the use of this firmware. Users are solely responsible for ensuring their use complies with all applicable local, state, and federal laws. Unauthorized access to vehicle systems, interception of RF signals, or bypassing of security mechanisms may violate laws including but not limited to the Computer Fraud and Abuse Act (CFAA), the European Cybercrime Convention, and national telecommunications regulations. This software must not be used for unauthorized entry, theft, stalking, or any other illegal activity.*
+*This firmware is provided as-is for educational and research purposes only. It is not affiliated with, endorsed by, or supported by Flipper Devices, the Moon Firmware project, or any vehicle manufacturer. The authors assume no responsibility for any damage to hardware, loss of data, or legal consequences resulting from the use of this firmware. Users are solely responsible for ensuring their use complies with all applicable local, state, and federal laws. Unauthorized access to vehicle systems, interception of RF signals, or bypassing of security mechanisms may violate laws including but not limited to the Computer Fraud and Abuse Act (CFAA), the European Cybercrime Convention, and national telecommunications regulations. This software must not be used for unauthorized entry, theft, stalking, or any other illegal activity.*

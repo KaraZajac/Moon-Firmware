@@ -12,7 +12,7 @@ static bool bad_usb_file_select(BadUsbApp* bad_usb) {
         dialog_message_set_buttons(message, "No", NULL, "Yes");
         dialog_message_set_text(
             message,
-            "Momentum uses the 'badusb'\n"
+            "Moon uses the 'badusb'\n"
             "folder for compatibility.\n"
             "Want to migrate from\n"
             "'badkb' folder?",

@@ -44,7 +44,7 @@ libs = env.BuildModules(
         "uzlib",
         "nanopb",
         "update_util",
-        "momentum",
+        "moon",
         "heatshrink",
         "ble_profile",
         "bit_lib",

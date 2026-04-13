@@ -4,7 +4,7 @@
 #include <toolbox/saved_struct.h>
 #include <stdbool.h>
 #include <loader/loader.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #include "../desktop_i.h"
 #include <desktop/desktop_settings.h>
@@ -46,9 +46,9 @@ void desktop_scene_lock_menu_save_settings(Desktop* desktop) {
         notification_message_save_settings(desktop->lock_menu->notification);
         desktop->lock_menu->save_notification = false;
     }
-    if(desktop->lock_menu->save_momentum) {
-        momentum_settings_save();
-        desktop->lock_menu->save_momentum = false;
+    if(desktop->lock_menu->save_moon) {
+        moon_settings_save();
+        desktop->lock_menu->save_moon = false;
     }
     if(desktop->lock_menu->save_bt) {
         bt_settings_save(&desktop->lock_menu->bt->bt_settings);
@@ -116,14 +116,14 @@ bool desktop_scene_lock_menu_on_event(void* context, SceneManagerEvent event) {
             }
             consumed = true;
             break;
-        case DesktopLockMenuEventMomentum:
+        case DesktopLockMenuEventMoon:
             desktop_scene_lock_menu_save_settings(desktop);
-            loader_start_detached_with_gui_error(desktop->loader, "Momentum", NULL);
+            loader_start_detached_with_gui_error(desktop->loader, "Moon", NULL);
             consumed = true;
             break;
         case DesktopLockMenuEventScreenSettings:
             desktop_scene_lock_menu_save_settings(desktop);
-            loader_start_detached_with_gui_error(desktop->loader, "Momentum", "MiscScreen");
+            loader_start_detached_with_gui_error(desktop->loader, "Moon", "MiscScreen");
             consumed = true;
             break;
         case DesktopLockMenuEventStealthModeOn:

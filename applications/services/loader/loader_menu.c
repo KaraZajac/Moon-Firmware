@@ -15,7 +15,7 @@
 #include <toolbox/stream/file_stream.h>
 #include <gui/modules/file_browser.h>
 #include <core/dangerous_defines.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 #include <gui/icon_i.h>
 #include <m-list.h>
 
@@ -317,7 +317,7 @@ static void loader_menu_build_menu(LoaderMenuApp* app, LoaderMenu* menu) {
                 } else if(furi_string_equal(line, "SubGHz")) {
                     furi_string_set(line, "Sub-GHz");
                 } else if(furi_string_equal(line, "Xtreme")) {
-                    furi_string_set(line, "Momentum");
+                    furi_string_set(line, "Moon");
                 }
             }
             loader_menu_find_add_app(app, storage, line);

@@ -16,7 +16,7 @@ The JavaScript SDK for Flipper Zero is distributed as an [NPM package](npmjs.com
 
 Some Custom Firmwares have their own JavaScript SDK, which can contain additional features. Scripts made with the Official Flipper JavaScript SDK will work on Custom Firmwares, while the opposite might not always be true. The SDK offers [ways to check this compatibility](#js_builtin_sdk_compatibility) as a script developer, so you can make your script work on multiple Firmwares, and take advantage of the extra features when they are available.
 
-You can find the Momentum JavaScript SDK NPM package [here](https://www.npmjs.com/package/@next-flip/fz-sdk-mntm).
+You can find the Moon JavaScript SDK NPM package [here](https://www.npmjs.com/package/@next-flip/fz-sdk-mntm).
 
 > [!note]
 > In this guide, we'll use **npm**, the default package manager for Node.js.

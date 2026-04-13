@@ -1,6 +1,6 @@
 # Pre-included Asset Packs
 
-- **`Momentum`** - Credits:
+- **`Moon`** - Credits:
   - [Kuronons](https://github.com/Kuronons) for the [desktop animations](https://github.com/Kuronons/FZ_graphics/tree/main/Animations/Custom_Firmwares)
   - [Kuronons](https://github.com/Kuronons) for the [passport portraits](https://github.com/Kuronons/FZ_graphics/tree/main/Passport%20profile%20pictures)
   - [Kuronons](https://github.com/Kuronons) for the [passport background](https://github.com/Kuronons/FZ_graphics/tree/main/Passport%20background) (not in asset pack, it's in base firmware)

@@ -2,11 +2,11 @@
   "name": "<app_name>",
   "version": "1.0.0",
   "scripts": {
-    "build": "tsc && node node_modules/@next-flip/fz-sdk-mntm/sdk.js build",
-    "start": "npm run build && node node_modules/@next-flip/fz-sdk-mntm/sdk.js upload"
+    "build": "tsc && node node_modules/@KaraZajac/fz-sdk-moon/sdk.js build",
+    "start": "npm run build && node node_modules/@KaraZajac/fz-sdk-moon/sdk.js upload"
   },
   "devDependencies": {
-    "@next-flip/fz-sdk-mntm": "^1.0",
+    "@KaraZajac/fz-sdk-moon": "^1.0",
     "typescript": "^5.6.3"
   }
 }

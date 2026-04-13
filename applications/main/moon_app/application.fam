@@ -1,0 +1,11 @@
+App(
+    appid="moon_app",
+    name="Moon",
+    apptype=FlipperAppType.MENUEXTERNAL,
+    entry_point="moon_app",
+    stack_size=2 * 1024,
+    flags=["InsomniaSafe"],
+    icon="A_Moon_14",
+    order=90,
+    fap_category="assets",
+)

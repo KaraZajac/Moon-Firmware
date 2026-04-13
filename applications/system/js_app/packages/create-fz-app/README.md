@@ -1,9 +1,9 @@
-# Momentum FW JavaScript SDK Wizard
+# Moon FW JavaScript SDK Wizard
 This package contains an interactive wizard that lets you scaffold a JavaScript
-application for Flipper Zero using the Momentum Firmware JS SDK.
+application for Flipper Zero using the Moon Firmware JS SDK.
 
 This is a fork of the [Official Flipper Zero JS SDK Wizard](https://www.npmjs.com/package/@flipperdevices/create-fz-app),
-configured to use the [Momentum JavaScript SDK]((https://www.npmjs.com/package/@next-flip/fz-sdk-mntm)) instead.
+configured to use the [Moon JavaScript SDK]((https://www.npmjs.com/package/@next-flip/fz-sdk-mntm)) instead.
 No other changes are included.
 
 ## Getting started

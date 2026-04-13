@@ -37,9 +37,9 @@ static void flipper_print_version(const char* target, const Version* version) {
 #ifndef FURI_RAM_EXEC
 #include <furi_hal.h>
 #include <assets_icons.h>
-#include <momentum/asset_packs.h>
-#include <momentum/namespoof.h>
-#include <momentum/settings_i.h>
+#include <moon/asset_packs.h>
+#include <moon/namespoof.h>
+#include <moon/settings_i.h>
 
 #include <applications/main/archive/helpers/archive_favorites.h>
 #include <bt/bt_service/bt_keys_filename.h>
@@ -82,8 +82,8 @@ void flipper_migrate_files() {
         {EXT_PATH(".config/expansion.settings"), EXPANSION_SETTINGS_PATH},
         {EXT_PATH(".config/mainmenu_apps.txt"), MAINMENU_APPS_PATH},
         {EXT_PATH(".config/xtreme_menu.txt"), MAINMENU_APPS_PATH},
-        {EXT_PATH(".config/momentum_settings.txt"), MOMENTUM_SETTINGS_PATH},
-        {EXT_PATH(".config/xtreme_settings.txt"), MOMENTUM_SETTINGS_PATH},
+        {EXT_PATH(".config/moon_settings.txt"), MOON_SETTINGS_PATH},
+        {EXT_PATH(".config/xtreme_settings.txt"), MOON_SETTINGS_PATH},
         {EXT_PATH(".config/notification.settings"), NOTIFICATION_SETTINGS_PATH},
         {EXT_PATH(".config/power.settings"), POWER_SETTINGS_PATH},
         {EXT_PATH(".config/rgb_backlight.settings"), RGB_BACKLIGHT_SETTINGS_PATH},
@@ -148,7 +148,7 @@ void flipper_mount_callback(const void* message, void* context) {
 
         // TODO: If new SD doesn't contain all current settings IDs, values
         // from previous SD are kept for these settings
-        momentum_settings_load();
+        moon_settings_load();
 
         // TODO: Could lock kernel on free to avoid GUI using assets while being free'd
         asset_packs_free();
@@ -205,7 +205,7 @@ void flipper_init(void) {
 
             canvas_draw_icon(canvas, 79, 44, &I_Rpc_active_7x8);
             canvas_commit(canvas);
-            momentum_settings_load();
+            moon_settings_load();
 
             furi_hal_light_sequence("rgb RB");
             canvas_draw_icon(canvas, 99, 44, &I_Hidden_window_9x8);

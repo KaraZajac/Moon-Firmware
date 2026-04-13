@@ -165,7 +165,7 @@ static bool update_task_write_stack(UpdateTask* update_task) {
 
         /* Flash firmware DFU BEFORE FUS_FwUpgrade.  FUS will reboot the
          * system after installing the stack, changing SRAM2 boundaries
-         * (SBRSA/SNBRSA).  The old firmware (e.g. Momentum, built for
+         * (SBRSA/SNBRSA).  The old firmware (e.g. Moon, built for
          * BLE Light) can't handle the new SRAM2 layout → BusFault on
          * boot → dead device.  Writing our firmware first ensures the
          * post-FUS-reboot boots into firmware built for the new stack. */

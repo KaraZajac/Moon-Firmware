@@ -2,7 +2,7 @@
 #include <toolbox/api_lock.h>
 #include <assets_icons.h>
 #include <storage/storage.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 /****************** File browser ******************/
 
@@ -38,7 +38,7 @@ bool dialog_file_browser_show(
             .hide_ext = options ? options->hide_ext : true,
             .skip_assets = options ? options->skip_assets : true,
             .hide_dot_files =
-                (options ? options->hide_dot_files : true && !momentum_settings.show_hidden_files),
+                (options ? options->hide_dot_files : true && !moon_settings.show_hidden_files),
             .preselected_filename = path,
             .item_callback = options ? options->item_loader_callback : NULL,
             .item_callback_context = options ? options->item_loader_context : NULL,

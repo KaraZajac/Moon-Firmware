@@ -1,9 +1,9 @@
 # Sub-GHz Supported Protocols
 
-This file lists all supported Sub-GHz protocols available in Momentum Firmware, both tested and untested.
+This file lists all supported Sub-GHz protocols available in Moon Firmware, both tested and untested.
 
 Many protocols support, and this documentation page, comes from [Unleashed Firmware](https://github.com/DarkFlippers/unleashed-firmware).
-Currently Momentum has the same Sub-GHz protocol list as Unleashed, and most Sub-GHz innovation is driven by the Unleashed team.
+Currently Moon has the same Sub-GHz protocol list as Unleashed, and most Sub-GHz innovation is driven by the Unleashed team.
 Go show them some love and maybe donate to them too!
 
 That list is only for default SubGHz app, apps like *Weather Station* have their own protocols list

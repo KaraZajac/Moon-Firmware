@@ -1,12 +1,12 @@
 ## Intro
 
-Asset Packs are a feature exclusive to Momentum Firmware (and its predecessor Xtreme Firmware) that allows you to load custom Animation and Icon sets without recompiling the firmware or messing with manifest.txt files (as a user). Here you can find info on how to install Asset Packs and also how to make your own.
+Asset Packs are a feature exclusive to Moon Firmware (and its predecessor Xtreme Firmware) that allows you to load custom Animation and Icon sets without recompiling the firmware or messing with manifest.txt files (as a user). Here you can find info on how to install Asset Packs and also how to make your own.
 
 <br>
 
 ## How to install Asset Packs?
 
-Installing Asset Packs is quite easy and straightforward. First, make sure you're on an updated version of Momentum before you begin, Asset Packs were added in v40! Then, find some packs to install (we have a channel in our discord where you can find some) or make your own (see below). Once you have some packs to install:
+Installing Asset Packs is quite easy and straightforward. First, make sure you're on an updated version of Moon before you begin, Asset Packs were added in v40! Then, find some packs to install (we have a channel in our discord where you can find some) or make your own (see below). Once you have some packs to install:
 
 - Open qFlipper and navigate to `SD Card` and into `asset_packs`; if you do not see this folder, try reinstalling the firmware, or create it yourself.
 
@@ -14,7 +14,7 @@ Installing Asset Packs is quite easy and straightforward. First, make sure you'r
 
   If you did this correctly, you should see `SD/asset_packs/PackName/Anims` and/or `SD/asset_packs/PackName/Icons`.
 
-- Now simply open the Momentum Settings app (from the home screen press `Arrow UP` and then `Momentum Settings`) and select the asset pack you want. When you back out, Flipper will restart and your animations and icons will use the ones from the selected pack!
+- Now simply open the Moon Settings app (from the home screen press `Arrow UP` and then `Moon Settings`) and select the asset pack you want. When you back out, Flipper will restart and your animations and icons will use the ones from the selected pack!
 
 <br>
 
@@ -56,7 +56,7 @@ SD/
 Again, this is all fairly standard Flipper animation stuff, there are plenty of tutorials on YouTube. The key differences with the Asset Pack animation system are:
 
 - They go in `SD/asset_packs/PackName/Anims` instead of `SD/dolphin`.
-- Momentum has up to level 30, so make sure to update your manifest.txt accordingly!
+- Moon has up to level 30, so make sure to update your manifest.txt accordingly!
 
 <br>
 
@@ -149,7 +149,7 @@ All the .bm and .bmx struggles are dealt with by the packer system, which is in 
 
 - Now upload the packed packs from that folder onto your flipper in `SD/asset_packs`.
 
-- Done! Just select it from the Momentum Settings app now. And if you're generous share your (packed) asset pack in #asset-packs on discord.
+- Done! Just select it from the Moon Settings app now. And if you're generous share your (packed) asset pack in #asset-packs on discord.
 
 #### Building with Firmware
 

@@ -1,7 +1,7 @@
 #include "../subghz_i.h"
 #include "../views/transmitter.h"
 #include <dolphin/dolphin.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #include <lib/subghz/blocks/custom_btn.h>
 
@@ -79,7 +79,7 @@ void subghz_scene_transmitter_on_enter(void* context) {
         scene_manager_handle_custom_event(
             subghz->scene_manager, SubGhzCustomEventViewTransmitterSendStart);
         furi_timer_start(
-            subghz->timer, momentum_settings.favorite_timeout * furi_kernel_get_tick_frequency());
+            subghz->timer, moon_settings.favorite_timeout * furi_kernel_get_tick_frequency());
     }
 }
 

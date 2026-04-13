@@ -61,7 +61,7 @@ if __name__ == "__main__":
                             "name": "Firmware Artifacts:",
                             "value": "\n".join(
                                 [
-                                    f"- [🖥️ Install with Web Updater](https://momentum-fw.dev/update?version={os.environ['VERSION_TAG'].removeprefix('mntm-dev-')})",
+                                    f"- [🖥️ Install with Web Updater](https://moon-fw.dev/update?version={os.environ['VERSION_TAG'].removeprefix('moon-dev-')})",
                                     f"- [☁️ Open in Flipper Lab/App]({artifact_lab})",
                                     f"- [🐬 Download Firmware TGZ]({artifact_tgz})",
                                     f"- [🛠️ SDK (for development)]({artifact_sdk})",

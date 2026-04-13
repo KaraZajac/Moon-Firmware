@@ -17,7 +17,7 @@
 #define GAP_INTERVAL_TO_MS(x) (uint16_t)((x) * 1.25)
 
 /* Max connection slots — sized for CFG_BLE_NUM_LINK (8).
- * Actual runtime limit set by momentum_settings.ble_max_connections */
+ * Actual runtime limit set by moon_settings.ble_max_connections */
 #define GAP_MAX_CONNECTIONS CFG_BLE_NUM_LINK
 
 typedef struct {

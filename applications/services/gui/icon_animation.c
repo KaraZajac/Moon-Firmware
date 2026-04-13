@@ -2,7 +2,7 @@
 #include "icon_i.h" // IWYU pragma: keep
 
 #include <furi.h>
-#include <momentum/asset_packs_i.h>
+#include <moon/asset_packs_i.h>
 
 IconAnimation* icon_animation_alloc(const Icon* icon) {
     furi_check(icon);

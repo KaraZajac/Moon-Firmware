@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <furi.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 const char* const name_generator_left[] = {
     "super",  "big",   "little", "liquid",  "qq",       "cheeky", "thick",
@@ -27,10 +27,10 @@ void name_generator_make_auto_datetime(
     DateTime* custom_time) {
     if(!furi_hal_rtc_is_flag_set(FuriHalRtcFlagRandomFilename)) {
         name_generator_make_detailed_datetime(
-            name, max_name_size, prefix, custom_time, momentum_settings.file_naming_prefix_after);
+            name, max_name_size, prefix, custom_time, moon_settings.file_naming_prefix_after);
     } else {
         name_generator_make_random_prefixed(
-            name, max_name_size, prefix, momentum_settings.file_naming_prefix_after);
+            name, max_name_size, prefix, moon_settings.file_naming_prefix_after);
     }
 }
 
@@ -41,7 +41,7 @@ void name_generator_make_auto(char* name, size_t max_name_size, const char* pref
 void name_generator_make_auto_basic(char* name, size_t max_name_size, const char* prefix) {
     if(!furi_hal_rtc_is_flag_set(FuriHalRtcFlagRandomFilename)) {
         name_generator_make_detailed_datetime(
-            name, max_name_size, prefix, NULL, momentum_settings.file_naming_prefix_after);
+            name, max_name_size, prefix, NULL, moon_settings.file_naming_prefix_after);
     } else {
         name_generator_make_random(name, max_name_size);
     }
@@ -91,7 +91,7 @@ void name_generator_make_random_prefixed(
 
 void name_generator_make_random(char* name, size_t max_name_size) {
     name_generator_make_random_prefixed(
-        name, max_name_size, NULL, momentum_settings.file_naming_prefix_after);
+        name, max_name_size, NULL, moon_settings.file_naming_prefix_after);
 }
 
 void name_generator_make_detailed_datetime(
@@ -155,5 +155,5 @@ void name_generator_make_detailed_datetime(
 
 void name_generator_make_detailed(char* name, size_t max_name_size, const char* prefix) {
     name_generator_make_detailed_datetime(
-        name, max_name_size, prefix, NULL, momentum_settings.file_naming_prefix_after);
+        name, max_name_size, prefix, NULL, moon_settings.file_naming_prefix_after);
 }

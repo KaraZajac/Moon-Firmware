@@ -13,7 +13,7 @@
 #include <core/log.h>
 #include "m-algo.h"
 #include <m-array.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #define LIST_ITEMS   5u
 #define MAX_LEN_PX   110
@@ -85,7 +85,7 @@ static int BrowserItem_t_cmp(const BrowserItem_t* a, const BrowserItem_t* b) {
     if(b->type == BrowserItemTypeBack) {
         return 1;
     }
-    if(momentum_settings.sort_dirs_first) {
+    if(moon_settings.sort_dirs_first) {
         if(a->type == BrowserItemTypeFolder && b->type != BrowserItemTypeFolder) {
             return -1;
         }

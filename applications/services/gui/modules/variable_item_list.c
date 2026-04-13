@@ -5,7 +5,7 @@
 #include <assets_icons.h>
 #include <m-array.h>
 #include <stdint.h>
-#include <momentum/settings.h>
+#include <moon/settings.h>
 
 struct VariableItem {
     FuriString* label;
@@ -147,7 +147,7 @@ static void variable_item_list_draw_callback(Canvas* canvas, void* _model) {
     elements_scrollbar(canvas, model->position, VariableItemArray_size(model->items));
 
     if(model->locked_message_visible) {
-        if(momentum_settings.popup_overlay) {
+        if(moon_settings.popup_overlay) {
             canvas_draw_overlay(canvas);
         }
         canvas_set_color(canvas, ColorWhite);

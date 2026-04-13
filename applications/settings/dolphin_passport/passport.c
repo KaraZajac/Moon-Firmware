@@ -7,7 +7,7 @@
 
 #include <assets_icons.h>
 
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 typedef struct {
     FuriSemaphore* semaphore;

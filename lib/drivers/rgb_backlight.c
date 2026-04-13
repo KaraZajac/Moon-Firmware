@@ -63,7 +63,7 @@ static struct {
 };
 
 void rgb_backlight_load_settings(bool enabled) {
-    // This function is called from momentum_settings_load()
+    // This function is called from moon_settings_load()
     // No need to setup storage pubsub, just expect multiple calls
 
     rgb_state.settings_loaded = false;

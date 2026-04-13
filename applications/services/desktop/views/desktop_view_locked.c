@@ -6,7 +6,7 @@
 
 #include <assets_icons.h>
 #include <locale/locale.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #include "desktop_view_locked.h"
 
@@ -79,7 +79,7 @@ void desktop_view_locked_draw_lockscreen(Canvas* canvas, void* m) {
         pm = datetime.hour > 12;
         snprintf(meridian_str, 3, datetime.hour >= 12 ? "PM" : "AM");
         if(datetime.hour == 0) {
-            datetime.hour = momentum_settings.midnight_format_00 ? 0 : 12;
+            datetime.hour = moon_settings.midnight_format_00 ? 0 : 12;
         }
     }
     snprintf(time_str, 9, "%.2d:%.2d", pm ? datetime.hour - 12 : datetime.hour, datetime.minute);
@@ -93,14 +93,14 @@ void desktop_view_locked_draw_lockscreen(Canvas* canvas, void* m) {
         snprintf(date_str, 14, "%.2d-%.2d-%.4d", datetime.day, datetime.month, datetime.year);
     }
 
-    if(!momentum_settings.lockscreen_transparent) {
+    if(!moon_settings.lockscreen_transparent) {
         canvas_draw_icon(canvas, 0, 0 + y, &I_Lockscreen);
     }
-    if(momentum_settings.lockscreen_time) {
+    if(moon_settings.lockscreen_time) {
         canvas_set_font(canvas, FontBigNumbers);
         canvas_draw_str(canvas, 0, 64 + y, time_str);
         int offset = canvas_string_width(canvas, time_str) + 2;
-        if(momentum_settings.lockscreen_seconds) {
+        if(moon_settings.lockscreen_seconds) {
             canvas_set_font(canvas, FontSecondary);
             canvas_draw_str(canvas, 0 + offset, 64 + y, second_str);
             offset += canvas_string_width(canvas, ":00") + 2;
@@ -110,12 +110,12 @@ void desktop_view_locked_draw_lockscreen(Canvas* canvas, void* m) {
             canvas_draw_str(canvas, 0 + offset, 64 + y, meridian_str);
         }
     }
-    if(momentum_settings.lockscreen_date) {
+    if(moon_settings.lockscreen_date) {
         canvas_set_font(canvas, FontSecondary);
-        canvas_draw_str(canvas, 0, 48 + y + 16 * !momentum_settings.lockscreen_time, date_str);
+        canvas_draw_str(canvas, 0, 48 + y + 16 * !moon_settings.lockscreen_time, date_str);
     }
     if(model->view_state == DesktopViewLockedStateLockedHintShown &&
-       momentum_settings.lockscreen_prompt) {
+       moon_settings.lockscreen_prompt) {
         canvas_set_font(canvas, FontSecondary);
         if(model->pin_locked) {
             elements_bubble_str(
@@ -289,7 +289,7 @@ void desktop_view_locked_close_cover(DesktopViewLocked* locked_view) {
     DesktopViewLockedModel* model = view_get_model(locked_view->view);
     furi_assert(model->view_state == DesktopViewLockedStateLocked);
 
-    if(momentum_settings.lockscreen_skip_animation) {
+    if(moon_settings.lockscreen_skip_animation) {
         locked_view->callback(DesktopLockedEventCoversClosed, locked_view->context);
         model->cover_offset = COVER_OFFSET_END;
         view_commit_model(locked_view->view, true);
@@ -313,7 +313,7 @@ void desktop_view_locked_unlock(DesktopViewLocked* locked_view) {
     locked_view->lock_count = 0;
     DesktopViewLockedModel* model = view_get_model(locked_view->view);
 
-    if(momentum_settings.lockscreen_skip_animation) {
+    if(moon_settings.lockscreen_skip_animation) {
         model->view_state = DesktopViewLockedStateUnlocked;
         model->cover_offset = COVER_OFFSET_START;
         model->pin_locked = false;

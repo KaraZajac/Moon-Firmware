@@ -1,6 +1,6 @@
 #include "../lfrfid_i.h"
 
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 FuriTimer* timer_auto_exit = NULL;
 
@@ -36,7 +36,7 @@ void lfrfid_scene_emulate_on_enter(void* context) {
             furi_timer_alloc(lfrfid_scene_emulate_popup_callback, FuriTimerTypeOnce, app);
         furi_timer_start(
             timer_auto_exit,
-            momentum_settings.favorite_timeout * furi_kernel_get_tick_frequency());
+            moon_settings.favorite_timeout * furi_kernel_get_tick_frequency());
     }
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LfRfidViewWidget);

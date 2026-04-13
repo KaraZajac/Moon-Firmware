@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <momentum/settings.h>
+#include <moon/settings.h>
 
 typedef struct {
     int32_t x;
@@ -700,7 +700,7 @@ void elements_scrollable_text_line_centered(
     FuriString* line = furi_string_alloc_set(string);
 
     size_t len_px = canvas_string_width(canvas, furi_string_get_cstr(line));
-    bool marquee = momentum_settings.scroll_marquee;
+    bool marquee = moon_settings.scroll_marquee;
     if(len_px > width) {
         if(centered && !marquee) {
             centered = false;

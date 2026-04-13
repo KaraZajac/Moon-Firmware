@@ -2,7 +2,7 @@
 
 #include <furi.h>
 #include <furi_hal.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #include <update_util/update_operation.h>
 #include <notification/notification_messages.h>
@@ -20,7 +20,7 @@
 static void power_draw_battery_callback(Canvas* canvas, void* context) {
     furi_assert(context);
     Power* power = context;
-    BatteryIcon battery_icon = momentum_settings.battery_icon;
+    BatteryIcon battery_icon = moon_settings.battery_icon;
     if(battery_icon == BatteryIconOff) return;
 
     canvas_draw_icon(canvas, 0, 0, &I_Battery_25x8);
@@ -590,7 +590,7 @@ static void power_tick_callback(void* context) {
     power_charge_supress(power);
     // Update battery view port
     view_port_enabled_set(
-        power->battery_view_port, momentum_settings.battery_icon != BatteryIconOff);
+        power->battery_view_port, moon_settings.battery_icon != BatteryIconOff);
     if(need_refresh) {
         view_port_update(power->battery_view_port);
     }

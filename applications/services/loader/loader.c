@@ -10,7 +10,7 @@
 #include <flipper_application/flipper_application.h>
 #include <loader/firmware_api/firmware_api.h>
 
-#include <momentum/asset_packs.h>
+#include <moon/asset_packs.h>
 
 #define TAG "Loader"
 

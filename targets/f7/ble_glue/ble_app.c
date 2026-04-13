@@ -9,7 +9,7 @@
 
 #include <furi_hal.h>
 #include <furi.h>
-#include <momentum/settings.h>
+#include <moon/settings.h>
 
 #define TAG "Bt"
 
@@ -86,7 +86,7 @@ bool ble_app_init(void) {
     ble_app->hci_sem = furi_semaphore_alloc(1, 0);
 
     // Set runtime BLE connection count from user setting (2-8, default 2)
-    uint32_t max_conn = momentum_settings.ble_max_connections;
+    uint32_t max_conn = moon_settings.ble_max_connections;
     if(max_conn < 2) max_conn = 2;
     if(max_conn > 8) max_conn = 8;
     ble_init_cmd_packet.Param.NumOfLinks = max_conn;

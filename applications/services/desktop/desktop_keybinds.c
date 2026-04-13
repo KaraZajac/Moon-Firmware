@@ -45,7 +45,7 @@ void desktop_keybinds_migrate(Desktop* desktop) {
                     } else if(furi_string_equal(keybind, "SubGHz")) {
                         furi_string_set(keybind, "Sub-GHz");
                     } else if(furi_string_equal(keybind, "Xtreme")) {
-                        furi_string_set(keybind, "Momentum");
+                        furi_string_set(keybind, "Moon");
                     }
                     new[type][key] = keybind;
                 }

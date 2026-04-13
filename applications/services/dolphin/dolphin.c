@@ -2,7 +2,7 @@
 
 #include <furi_hal.h>
 #include <storage/storage.h>
-#include <momentum/momentum.h>
+#include <moon/moon.h>
 
 #define TAG "Dolphin"
 
@@ -17,7 +17,7 @@
 #define FLUSH_TIMEOUT_TICKS (SECONDS_IN_TICKS(30UL))
 
 #ifndef DOLPHIN_DEBUG
-#define BUTTHURT_INCREASE_PERIOD_TICKS   (SECONDS_IN_TICKS(momentum_settings.butthurt_timer))
+#define BUTTHURT_INCREASE_PERIOD_TICKS   (SECONDS_IN_TICKS(moon_settings.butthurt_timer))
 #define CLEAR_LIMITS_PERIOD_TICKS        (HOURS_IN_TICKS(24UL))
 #define CLEAR_LIMITS_UPDATE_PERIOD_TICKS (HOURS_IN_TICKS(1UL))
 #else
