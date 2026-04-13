@@ -51,6 +51,21 @@ typedef enum {
     GapStateConnecting,
 } GapState;
 
+/** Activity flags — track concurrent BLE operations independently.
+ *  Unlike GapState (single enum), these can be combined. */
+typedef enum {
+    GapActivityAdvertising = (1 << 0),
+    GapActivityScanning    = (1 << 1),
+    GapActivityConnecting  = (1 << 2),
+    GapActivityConnected   = (1 << 3),
+} GapActivity;
+
+/** Get active BLE activities (bitmask of GapActivity flags). */
+uint8_t gap_get_activities(void);
+
+/** Check if a specific activity is active. */
+bool gap_is_activity_active(GapActivity activity);
+
 typedef enum {
     GapPairingNone,
     GapPairingPinCodeShow,
