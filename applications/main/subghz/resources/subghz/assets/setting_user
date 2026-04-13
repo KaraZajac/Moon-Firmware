@@ -1,0 +1,131 @@
+# to use manual settings and prevent them from being deleted on upgrade, rename *_user.example files to *_user
+Filetype: Flipper SubGhz Setting File
+Version: 1
+# Add Standard frequencies included with firmware and place user frequencies after them
+#Add_standard_frequencies: false
+
+# Default Frequency: used as default for "Read" and "Read Raw"
+#Default_frequency: 433920000
+
+# Frequencies used for "Read", "Read Raw" and "Frequency Analyzer"
+Frequency: 300000000
+Frequency: 302757000
+Frequency: 303000000
+Frequency: 303875000
+Frequency: 303900000
+Frequency: 304250000
+Frequency: 307000000
+Frequency: 307500000
+Frequency: 307800000
+Frequency: 309000000
+Frequency: 310000000
+Frequency: 312000000
+Frequency: 312100000
+Frequency: 312200000
+Frequency: 313000000
+Frequency: 313850000
+Frequency: 314000000
+Frequency: 314350000
+Frequency: 314980000
+Frequency: 315000000
+Frequency: 318000000
+Frequency: 320000000
+Frequency: 320150000
+Frequency: 330000000
+Frequency: 345000000
+Frequency: 348000000
+Frequency: 350000000
+Frequency: 387000000
+Frequency: 390000000
+Frequency: 418000000
+Frequency: 430000000
+Frequency: 430500000
+Frequency: 431000000
+Frequency: 431500000
+Frequency: 433075000
+Frequency: 433220000
+Frequency: 433420000
+Frequency: 433657070
+Frequency: 433880000
+Frequency: 433889000
+Frequency: 433900000
+Frequency: 433910000
+Frequency: 433920000
+Frequency: 433930000
+Frequency: 433940000
+Frequency: 433950000
+Frequency: 433960000
+Frequency: 434075000
+Frequency: 434176948
+Frequency: 434190000
+Frequency: 434390000
+Frequency: 434420000
+Frequency: 434620000
+Frequency: 434775000
+Frequency: 438900000
+Frequency: 440175000
+Frequency: 462750000
+Frequency: 464000000
+Frequency: 467750000
+Frequency: 779000000
+Frequency: 868350000
+Frequency: 868400000
+Frequency: 868460000
+Frequency: 868800000
+Frequency: 868950000
+Frequency: 906400000
+Frequency: 915000000
+Frequency: 925000000
+Frequency: 928000000
+
+# Frequencies used for hopping mode (keep this list small or flipper will miss signal)
+Hopper_frequency: 315000000
+Hopper_frequency: 433920000
+Hopper_frequency: 434420000
+Hopper_frequency: 868350000
+
+# Presets used for preset hopping mode (cycles through these modulations)
+Hopping_Preset: AM650
+Hopping_Preset: FM476
+Hopping_Preset: FM95
+
+# Custom preset
+# format for CC1101 "Custom_preset_data:" XX YY XX YY .. 00 00 ZZ ZZ ZZ ZZ ZZ ZZ ZZ ZZ, where: XX-register, YY - register data, 00 00 - end load register, ZZ - 8 byte Pa table register
+
+Custom_preset_name: OOK_LR
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 F8 11 32 12 30 14 00 15 00 18 18 19 16 1B 07 1C 00 1D B1 20 FB 21 B6 22 11 00 00 00 C0 00 00 00 00 00 00
+
+Custom_preset_name: OOK_U
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 F8 11 32 12 30 14 00 15 00 17 0C 18 18 19 16 1B 07 1C 00 1D B1 20 FB 21 B6 22 11 2C 81 2D 35 2E 09 00 00 00 C0 00 00 00 00 00 00
+
+Custom_preset_name: AM_1
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 C9 11 F8 12 30 14 00 15 14 18 18 19 16 1B 07 1C 00 1D 91 20 FB 21 55 22 00 00 00 00 C0 00 00 00 00 00 00
+
+Custom_preset_name: FSK_1
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 03 47 08 32 0B 0C 10 C7 11 93 12 00 13 22 14 F8 15 35 18 18 19 1D 1B 04 1C 00 1D 92 20 FB 21 B6 22 17 00 00 12 0E 1D 34 60 84 C8 C0
+
+Custom_preset_name: F3
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 03 47 08 32 0B 06 0C 00 0D 10 0D 0D 10 C5 11 83 12 80 13 22 14 F8 15 42 16 07 17 30 18 18 19 1D 1A 1C 1B 43 1C 40 1D 91 20 FB 21 B6 22 00 23 E9 24 2A 25 00 26 1F 2C 81 2D 35 2E 09 00 00 12 0E 1D 34 60 84 C8 C0
+
+Custom_preset_name: FM95
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 07 04 08 32 0B 06 10 67 11 83 12 04 13 02 15 24 18 18 19 16 1B 07 1C 00 1D 91 20 FB 21 56 22 10 00 00 C0 00 00 00 00 00 00 00
+
+Custom_preset_name: FM15k
+Custom_preset_module: CC1101
+Custom_preset_data: 02 0D 03 47 08 32 0B 06 10 A7 11 32 12 00 13 00 14 00 15 32 18 18 19 1D 1B 04 1C 00 1D 92 20 FB 21 B6 22 17 00 00 00 12 0E 34 60 C5 C1 C0
+
+Custom_preset_name: Honda1
+Custom_preset_module: CC1101
+#                                                          G2    G3    G4    D                 L0    L1    L2
+Custom_preset_data: 02 0D 0B 06 08 32 07 04 14 00 13 02 12 04 11 36 10 69 15 32 18 18 19 16 1D 91 1C 00 1B 07 20 FB 22 10 21 56 00 00 C0 00 00 00 00 00 00 00
+
+Custom_preset_name: Honda2
+Custom_preset_module: CC1101
+#                                                          G2    G3    G4    D                 L0    L1    L2
+Custom_preset_data: 02 0D 0B 06 08 32 07 04 14 00 13 02 12 07 11 36 10 E9 15 32 18 18 19 16 1D 92 1C 40 1B 03 20 FB 22 10 21 56 00 00 C0 00 00 00 00 00 00 00

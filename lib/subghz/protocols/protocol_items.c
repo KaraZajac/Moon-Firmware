@@ -105,6 +105,13 @@ const SubGhzProtocol* const subghz_protocol_registry_items[] = {
     &subghz_protocol_star_line,
     &subghz_protocol_scher_khan,
     &subghz_protocol_sheriff_cfm,
+    &subghz_protocol_chrysler,
+    &subghz_protocol_bmw_cas4,
+//  &subghz_protocol_honda,
+    &subghz_protocol_honda_hf,
+    &subghz_protocol_honda_v3_kl,
+    &subghz_protocol_honda_v3_fsk,
+    &subghz_protocol_honda_v3_ook,
 };
 
 const SubGhzProtocolRegistry subghz_protocol_registry = {

@@ -107,3 +107,8 @@
 #include "scher_khan.h"
 #include "sheriff_cfm.h"
 #include "aut64.h"
+//#include "honda.h"
+#include "honda_hf.h"
+#include "honda_v3.h"
+#include "bmw_cas4.h"
+#include "chrysler.h"
