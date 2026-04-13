@@ -1953,12 +1953,14 @@ Function,-,gap_extra_beacon_set_config,_Bool,const GapExtraBeaconConfig*
 Function,-,gap_extra_beacon_set_data,_Bool,"const uint8_t*, uint8_t"
 Function,-,gap_extra_beacon_start,_Bool,
 Function,-,gap_extra_beacon_stop,_Bool,
+Function,+,gap_get_activities,uint8_t,
 Function,+,gap_get_connection_count,uint8_t,
 Function,+,gap_get_connection_handle,uint16_t,
 Function,+,gap_get_connection_handle_by_role,uint16_t,_Bool
 Function,+,gap_get_phy,_Bool,"uint16_t, uint8_t*, uint8_t*"
 Function,+,gap_get_state,GapState,
 Function,-,gap_init,_Bool,"GapConfig*, const GapRootSecurityKeys*, GapEventCallback, void*"
+Function,+,gap_is_activity_active,_Bool,GapActivity
 Function,+,gap_pair,_Bool,"uint16_t, _Bool"
 Function,+,gap_set_fixed_pin,void,uint32_t
 Function,+,gap_set_pairing_method,void,uint32_t

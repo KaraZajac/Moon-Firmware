@@ -140,6 +140,8 @@ static uint8_t gap_active_connection_count(void) {
     return count;
 }
 
+/* Check if any connection is in central role (used by dual-role apps) */
+__attribute__((unused))
 static bool gap_has_central_connection(void) {
     for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
         if(gap->service.connections[i].active && gap->service.connections[i].is_central) return true;
