@@ -24,6 +24,8 @@ typedef struct {
     uint16_t handle;
     bool active;
     bool is_central;
+    GapConnectionParams params;
+    uint8_t negotiation_round;
 } GapConnectionSlot;
 
 typedef struct {
@@ -54,8 +56,7 @@ typedef struct {
     FuriMessageQueue* command_queue;
     bool enable_adv;
     bool is_secure;
-    bool was_advertising; // TODO: remove after Step 5 (scan preserves adv)
-    uint8_t negotiation_round;
+    bool was_advertising; // set when adv stopped for scan/connect, cleared on restart
     GapScanCallback scan_callback;
     void* scan_context;
     FuriTimer* scan_timer;
@@ -151,59 +152,53 @@ static bool gap_is_connection_central(uint16_t handle) {
     return slot ? slot->is_central : false;
 }
 
-static void gap_verify_connection_parameters(Gap* gap) {
+static void gap_verify_connection_parameters(Gap* gap, uint16_t conn_handle) {
     furi_check(gap);
+
+    GapConnectionSlot* slot = gap_find_connection(conn_handle);
+    if(!slot || slot->is_central) return; // Only negotiate for peripheral connections
 
     FURI_LOG_I(
         TAG,
         "Connection parameters: Connection Interval: %d (%d ms), Slave Latency: %d, Supervision Timeout: %d",
-        gap->connection_params.conn_interval,
-        GAP_INTERVAL_TO_MS(gap->connection_params.conn_interval),
-        gap->connection_params.slave_latency,
-        gap->connection_params.supervisor_timeout);
+        slot->params.conn_interval,
+        GAP_INTERVAL_TO_MS(slot->params.conn_interval),
+        slot->params.slave_latency,
+        slot->params.supervisor_timeout);
 
-    // Send connection parameters request update if necessary
     GapConnectionParamsRequest* params = &gap->config->conn_param;
 
-    // Desired max connection interval depends on how many negotiation rounds we had in the past
-    // In the first negotiation round we want connection interval to be minimum
-    // If platform disagree then we request wider range
-    uint16_t connection_interval_max = gap->negotiation_round ? params->conn_int_max :
-                                                                params->conn_int_min;
+    uint16_t connection_interval_max = slot->negotiation_round ? params->conn_int_max :
+                                                                  params->conn_int_min;
 
-    // We do care about lower connection interval bound a lot: if it's lower than 30ms 2nd core will not allow us to use flash controller
-    bool negotiation_failed = params->conn_int_min > gap->connection_params.conn_interval;
+    bool negotiation_failed = params->conn_int_min > slot->params.conn_interval;
 
-    // We don't care about upper bound till connection become secure
     if(gap->is_secure) {
-        negotiation_failed |= connection_interval_max < gap->connection_params.conn_interval;
+        negotiation_failed |= connection_interval_max < slot->params.conn_interval;
     }
 
     if(negotiation_failed) {
         FURI_LOG_W(
             TAG,
             "Connection interval doesn't suite us. Trying to negotiate, round %u",
-            gap->negotiation_round + 1);
+            slot->negotiation_round + 1);
         if(aci_l2cap_connection_parameter_update_req(
-               gap->service.connection_handle,
+               conn_handle,
                params->conn_int_min,
                connection_interval_max,
-               gap->connection_params.slave_latency,
-               gap->connection_params.supervisor_timeout)) {
+               slot->params.slave_latency,
+               slot->params.supervisor_timeout)) {
             FURI_LOG_E(TAG, "Failed to request connection parameters update");
-            // The other side is not in the mood
-            // But we are open to try it again
-            gap->negotiation_round = 0;
+            slot->negotiation_round = 0;
         } else {
-            gap->negotiation_round++;
+            slot->negotiation_round++;
         }
     } else {
         FURI_LOG_I(
             TAG,
             "Connection interval suits us. Spent %u rounds to negotiate",
-            gap->negotiation_round);
-        // Looks like the other side is open to negotiation
-        gap->negotiation_round = 0;
+            slot->negotiation_round);
+        slot->negotiation_round = 0;
     }
 }
 
@@ -242,7 +237,6 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             gap->state = GapStateIdle;
             gap->is_secure = false;
         }
-        gap->negotiation_round = 0;
         furi_delay_us(666 + 666);
 
         /* Restart advertising if no peripheral connection exists and
@@ -266,11 +260,19 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         case HCI_LE_CONNECTION_UPDATE_COMPLETE_SUBEVT_CODE: {
             hci_le_connection_update_complete_event_rp0* event =
                 (hci_le_connection_update_complete_event_rp0*)meta_evt->data;
+            // Update per-connection params
+            GapConnectionSlot* update_slot = gap_find_connection(event->Connection_Handle);
+            if(update_slot) {
+                update_slot->params.conn_interval = event->Conn_Interval;
+                update_slot->params.slave_latency = event->Conn_Latency;
+                update_slot->params.supervisor_timeout = event->Supervision_Timeout;
+            }
+            // Keep global params in sync for backward compat
             gap->connection_params.conn_interval = event->Conn_Interval;
             gap->connection_params.slave_latency = event->Conn_Latency;
             gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
             FURI_LOG_I(TAG, "Connection parameters event complete");
-            gap_verify_connection_parameters(gap);
+            gap_verify_connection_parameters(gap, event->Connection_Handle);
             break;
         }
 
@@ -312,9 +314,13 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 break;
             }
 
-            gap->connection_params.conn_interval = event->Conn_Interval;
-            gap->connection_params.slave_latency = event->Conn_Latency;
-            gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
+            // Store initial params in the connection slot
+            slot->params.conn_interval = event->Conn_Interval;
+            slot->params.slave_latency = event->Conn_Latency;
+            slot->params.supervisor_timeout = event->Supervision_Timeout;
+            slot->negotiation_round = 0;
+            // Keep global params in sync for backward compat
+            gap->connection_params = slot->params;
 
             gap->state = GapStateConnected;
             gap->activities |= GapActivityConnected;
@@ -323,7 +329,7 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             if(!is_central) {
                 /* Peripheral role: stop advertising timer but keep service available */
                 furi_timer_stop(gap->advertise_timer);
-                gap_verify_connection_parameters(gap);
+                gap_verify_connection_parameters(gap, event->Connection_Handle);
                 if(gap->config->pairing_method != GapPairingNone) {
                     aci_gap_slave_security_req(event->Connection_Handle);
                 }
@@ -858,7 +864,6 @@ bool gap_init(
 
     // Set initial state
     gap->is_secure = false;
-    gap->negotiation_round = 0;
 
     if(gap->config->mfg_data_len > 0) {
         // Offset by 2 for length + AD_TYPE_MANUFACTURER_SPECIFIC_DATA
@@ -964,48 +969,48 @@ static int32_t gap_app(void* context) {
         } else if(command == GapCommandAdvStop) {
             gap_advertise_stop();
         } else if(command == GapCommandScanStart) {
-            /* Stop advertising if active (radio can't advertise + scan simultaneously
-             * on STM32WB55 — TODO: test if concurrent adv+scan works on Full stack) */
-            if(gap->activities & GapActivityAdvertising) {
-                FURI_LOG_I(TAG, "Stopping advertising for scan");
-                furi_timer_stop(gap->advertise_timer);
-                aci_gap_set_non_discoverable();
-                gap->activities &= ~GapActivityAdvertising;
-                gap->was_advertising = true;
-                if(gap->activities == 0) {
-                    gap->state = GapStateIdle;
-                }
-            }
+            /* Try scanning without stopping advertising — the STM32WB55 Full stack
+             * should support concurrent observation + advertising. If it fails,
+             * fall back to stopping advertising first. */
             bool ok = false;
-            /* Allow scanning when not already connecting */
             if(!(gap->activities & GapActivityConnecting)) {
                 uint16_t interval = gap->pending_scan_params.interval;
                 uint16_t window = gap->pending_scan_params.window;
                 uint8_t scan_type = gap->pending_scan_params.active ? 1 : 0;
-                tBleStatus status = aci_gap_start_observation_proc(
+                tBleStatus scan_status = aci_gap_start_observation_proc(
                     interval, window, scan_type, 0x00, 0, 0x00);
-                if(status == BLE_STATUS_SUCCESS) {
+
+                /* Fallback: if scan fails while advertising, stop adv and retry */
+                if(scan_status != BLE_STATUS_SUCCESS &&
+                   (gap->activities & GapActivityAdvertising)) {
+                    FURI_LOG_W(TAG, "Scan failed with adv active (0x%02X), stopping adv", scan_status);
+                    furi_timer_stop(gap->advertise_timer);
+                    aci_gap_set_non_discoverable();
+                    gap->activities &= ~GapActivityAdvertising;
+                    gap->was_advertising = true;
+                    scan_status = aci_gap_start_observation_proc(
+                        interval, window, scan_type, 0x00, 0, 0x00);
+                }
+
+                if(scan_status == BLE_STATUS_SUCCESS) {
                     gap->activities |= GapActivityScanning;
-                    // Only update legacy state to Scanning if not Connected
-                    if(gap_active_connection_count() == 0) {
-                        gap->state = GapStateScanning;
-                    }
                     if(gap->pending_scan_params.timeout_ms > 0) {
                         furi_timer_start(gap->scan_timer,
                             gap->pending_scan_params.timeout_ms);
                     }
-                    FURI_LOG_I(TAG, "Scanning started (interval=%d window=%d active=%d timeout=%d)",
-                        interval, window, scan_type, gap->pending_scan_params.timeout_ms);
+                    FURI_LOG_I(TAG, "Scanning started (interval=%d window=%d active=%d timeout=%d adv=%d)",
+                        interval, window, scan_type, gap->pending_scan_params.timeout_ms,
+                        !!(gap->activities & GapActivityAdvertising));
                     ok = true;
                 } else {
-                    FURI_LOG_E(TAG, "Start scanning failed: 0x%02X", status);
+                    FURI_LOG_E(TAG, "Start scanning failed: 0x%02X", scan_status);
                     if(gap->was_advertising && gap->enable_adv) {
                         gap->was_advertising = false;
                         gap_advertise_start(GapStateAdvFast);
                     }
                 }
             } else {
-                FURI_LOG_E(TAG, "Cannot scan in state %d", gap->state);
+                FURI_LOG_E(TAG, "Cannot scan while connecting");
             }
             gap->scan_result = ok;
             furi_semaphore_release(gap->scan_semaphore);
@@ -1013,9 +1018,10 @@ static int32_t gap_app(void* context) {
             if(gap->activities & GapActivityScanning) {
                 aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
                 gap->activities &= ~GapActivityScanning;
-                if(gap->activities == 0) gap->state = GapStateIdle;
-                FURI_LOG_I(TAG, "Scan timeout");
-                if(gap->was_advertising && gap->enable_adv) {
+                FURI_LOG_I(TAG, "Scan stopped");
+                // Restart advertising if we had to stop it for scanning
+                if(gap->was_advertising && gap->enable_adv &&
+                   !(gap->activities & GapActivityAdvertising)) {
                     gap->was_advertising = false;
                     gap_advertise_start(GapStateAdvFast);
                 }
@@ -1109,17 +1115,9 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
         return false;
     }
 
-    /* Stop advertising if active so we can connect as central */
-    if(gap->activities & GapActivityAdvertising) {
-        FURI_LOG_I(TAG, "Stopping advertising for connect");
-        furi_timer_stop(gap->advertise_timer);
-        aci_gap_set_non_discoverable();
-        gap->activities &= ~GapActivityAdvertising;
-        gap->was_advertising = true;
-        if(gap->activities == 0) {
-            gap->state = GapStateIdle;
-        }
-    }
+    /* Don't stop advertising — the STM32WB55 BLE controller can time-slice
+     * advertising and connection initiation. If aci_gap_create_connection fails
+     * with BLE_STATUS_BUSY, we'll stop advertising in the retry loop. */
 
     /* Stop scanning before connecting (radio can't scan and create connection simultaneously) */
     if(gap->activities & GapActivityScanning) {
@@ -1131,21 +1129,29 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
         }
     }
 
-    /* Allow connecting from: Idle, Connected (peripheral), Scanning */
-    if(gap->state != GapStateIdle && gap->state != GapStateConnected) {
-        FURI_LOG_E(TAG, "Cannot connect in state %d", gap->state);
+    /* Allow connecting when not already connecting */
+    if(gap->activities & GapActivityConnecting) {
+        FURI_LOG_E(TAG, "Already connecting");
         furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
         return false;
     }
 
-    /* Retry connection if BLE controller is still busy after advertising stop */
+    /* Retry connection — if BLE controller is busy (e.g., advertising), retry with backoff.
+     * On persistent failure, stop advertising as fallback and retry once more. */
     tBleStatus status = BLE_STATUS_FAILED;
     for(int retry = 0; retry < 10; retry++) {
         if(retry > 0) {
+            /* If we've retried 5 times and advertising is still on, stop it as fallback */
+            if(retry == 5 && (gap->activities & GapActivityAdvertising)) {
+                FURI_LOG_W(TAG, "Stopping advertising as fallback for connect");
+                furi_timer_stop(gap->advertise_timer);
+                aci_gap_set_non_discoverable();
+                gap->activities &= ~GapActivityAdvertising;
+                gap->was_advertising = true;
+            }
             furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
             furi_delay_ms(25);
             furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
-            if(gap->state != GapStateIdle) break;
         }
         status = aci_gap_create_connection(
             0x0060, /* scan interval 60ms */
