@@ -329,8 +329,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             gap->activities &= ~GapActivityConnecting; // connection attempt completed
 
             if(!is_central) {
-                /* Peripheral role: stop advertising timer but keep service available */
+                /* Peripheral role: BLE controller auto-stops advertising on connect.
+                 * Clear the activity flag to keep state consistent. */
                 furi_timer_stop(gap->advertise_timer);
+                gap->activities &= ~GapActivityAdvertising;
+                gap->adv_fast = false;
                 gap_verify_connection_parameters(gap, event->Connection_Handle);
                 if(gap->config->pairing_method != GapPairingNone) {
                     aci_gap_slave_security_req(event->Connection_Handle);
