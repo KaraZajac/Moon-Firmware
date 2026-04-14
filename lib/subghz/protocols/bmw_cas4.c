@@ -174,7 +174,7 @@ void subghz_protocol_decoder_bmw_cas4_feed(void* context, bool level, uint32_t d
         break;
 
     case BmwCas4DecoderStepPreamble:
-        if(duration >= BMW_CAS4_PREAMBLE_PULSE_MIN &&
+        if(level && duration >= BMW_CAS4_PREAMBLE_PULSE_MIN &&
            duration <= BMW_CAS4_PREAMBLE_PULSE_MAX) {
             instance->preamble_count++;
             instance->te_last = duration;
@@ -231,14 +231,14 @@ void subghz_protocol_decoder_bmw_cas4_feed(void* context, bool level, uint32_t d
                         instance->raw_data[byte_idx] |= (1 << bit_pos);
                     }
                     instance->generic.data = (instance->generic.data << 1) | new_bit;
+                    instance->bit_count++;
                 }
 
-                instance->bit_count++;
-
                 if(instance->bit_count == BMW_CAS4_DATA_BITS) {
+                    // Always set data_count_bit so hash/serialization works
+                    instance->generic.data_count_bit = BMW_CAS4_DATA_BITS;
                     if(instance->raw_data[0] == BMW_CAS4_BYTE0_MARKER &&
                        instance->raw_data[6] == BMW_CAS4_BYTE6_MARKER) {
-                        instance->generic.data_count_bit = BMW_CAS4_DATA_BITS;
                         if(instance->base.callback) {
                             instance->base.callback(&instance->base, instance->base.context);
                         }

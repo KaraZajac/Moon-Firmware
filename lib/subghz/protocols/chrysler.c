@@ -379,7 +379,8 @@ static void chrysler_parse_data(SubGhzProtocolDecoderChrysler* instance) {
     instance->generic.cnt = cnt;
     instance->generic.btn = (btn != 0xFF) ? btn : 0;
 
-    // Store full 80-bit data
+    // Store first 64 bits in generic.data (bytes 8-9 stored in raw_data,
+    // serialized separately as "Extra" field since generic.data is uint64_t)
     instance->generic.data =
         ((uint64_t)d[0] << 56) | ((uint64_t)d[1] << 48) |
         ((uint64_t)d[2] << 40) | ((uint64_t)d[3] << 32) |
@@ -569,7 +570,9 @@ SubGhzProtocolStatus subghz_protocol_decoder_chrysler_serialize(
 
     if(ret == SubGhzProtocolStatusOk) {
         uint32_t extra = ((uint32_t)instance->raw_data[8] << 8) | instance->raw_data[9];
-        flipper_format_write_uint32(flipper_format, "Extra", &extra, 1);
+        if(!flipper_format_write_uint32(flipper_format, "Extra", &extra, 1)) {
+            ret = SubGhzProtocolStatusErrorParserOthers;
+        }
     }
 
     return ret;

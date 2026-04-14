@@ -544,8 +544,8 @@ void subghz_protocol_decoder_honda_v3_ook_feed(
                     uint8_t bit_i  = inst->bit_count % 8u;
                     if(byte_i < 16u)
                         inst->data_buf[byte_i] |= (uint8_t)(1u << bit_i);
+                    inst->bit_count++;
                 }
-                inst->bit_count++;
             } else {
                 if(inst->bit_count >= HV3_OOK_MIN_BITS) {
                     if(ook_validate_frame(inst))
@@ -1487,6 +1487,11 @@ static bool fsk_manchester_decode(
 
     while(i + 1 < hb_count && hb[i] == hb[i+1]) i++;
 
+    /* Clamp max_bits to buffer capacity (decoded is HV3_FSK_FRAME_BYTES + 2 = 16 bytes) */
+    if(max_bits > (HV3_FSK_FRAME_BYTES + 2) * 8u) {
+        max_bits = (HV3_FSK_FRAME_BYTES + 2) * 8u;
+    }
+
     while(i + 1 < hb_count && bit_count < max_bits) {
         uint8_t h0 = hb[i];
         uint8_t h1 = hb[i+1];
@@ -1500,7 +1505,7 @@ static bool fsk_manchester_decode(
             bit_val = (h0 == 1u && h1 == 0u) ? 1u : 0u;
         }
 
-        /* MSB-first */
+        /* MSB-first — byte_idx bounded by max_bits clamp above */
         uint8_t byte_idx = bit_count / 8u;
         uint8_t bit_idx  = 7u - (bit_count % 8u);
         if(bit_val)

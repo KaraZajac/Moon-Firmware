@@ -183,8 +183,9 @@ static uint64_t honda_kl_pack(
     int8_t   key_idx,
     uint8_t  status)
 {
-    /* FIX: convertir key_idx a uint8_t antes de operar */
-    uint8_t ki = (key_idx >= 0) ? (uint8_t)key_idx : 0u;
+    /* Clamp invalid key_idx to 0 — callers should validate beforehand */
+    uint8_t ki = (key_idx >= 0 && key_idx < HONDA_MFR_KEY_COUNT) ?
+        (uint8_t)key_idx : 0u;
 
     return ((uint64_t)(serial & 0x0FFFFFFFu) << 36) |
            ((uint64_t)(btn    & 0x0Fu)       << 32) |
@@ -305,7 +306,6 @@ void* subghz_protocol_decoder_honda_keeloq_alloc(SubGhzEnvironment* environment)
 
     inst->base.protocol         = &subghz_protocol_honda_keeloq;
     inst->generic.protocol_name = inst->base.protocol->name;
-    inst->result_str            = furi_string_alloc();
     inst->key_idx               = -1;
     inst->has_last_rolling      = false;
 
@@ -316,7 +316,6 @@ void* subghz_protocol_decoder_honda_keeloq_alloc(SubGhzEnvironment* environment)
 void subghz_protocol_decoder_honda_keeloq_free(void* context) {
     furi_assert(context);
     SubGhzProtocolDecoderHondaKeeloq* inst = context;
-    furi_string_free(inst->result_str);
     free(inst);
 }
 

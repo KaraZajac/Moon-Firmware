@@ -132,8 +132,6 @@ typedef struct {
 
     uint16_t last_rolling;
     bool     has_last_rolling;
-
-    FuriString* result_str;
 } SubGhzProtocolDecoderHondaKeeloq;
 
 /* ─────────────────────────────────────────────────────────────────
