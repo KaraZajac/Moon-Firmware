@@ -1102,7 +1102,8 @@ void gap_stop_scanning(void) {
 
     furi_timer_stop(gap->scan_timer);
     aci_gap_terminate_gap_proc(GAP_OBSERVATION_PROC);
-    if(gap->state == GapStateScanning) {
+    gap->activities &= ~GapActivityScanning;
+    if(gap->activities == 0) {
         gap->state = GapStateIdle;
     }
     FURI_LOG_I(TAG, "Scanning stopped");
@@ -1110,7 +1111,6 @@ void gap_stop_scanning(void) {
     /* Restart advertising if we stopped it for scanning */
     if(gap->was_advertising && gap->enable_adv) {
         gap->was_advertising = false;
-        gap->state = GapStateStartingAdv;
         GapCommand command = GapCommandAdvFast;
         furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
     }
@@ -1198,6 +1198,12 @@ bool gap_connect(uint8_t address_type, const uint8_t* address) {
             address[5], address[4], address[3], address[2], address[1], address[0]);
     } else {
         FURI_LOG_E(TAG, "Connection failed: 0x%02X", status);
+        /* If we stopped advertising for this connection attempt, restart it */
+        if(gap->was_advertising && gap->enable_adv) {
+            gap->was_advertising = false;
+            GapCommand adv_cmd = GapCommandAdvFast;
+            furi_message_queue_put(gap->command_queue, &adv_cmd, 0);
+        }
     }
 
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
