@@ -777,19 +777,20 @@ static void gap_advertise_stop(void) {
     FURI_LOG_D(TAG, "Stop advertising");
     furi_timer_stop(gap->advertise_timer);
 
-    // set_non_discoverable returns BLE_STATUS_COMMAND_DISALLOWED (12) when
-    // connections are active — skip it in that case, the BLE stack reinit
-    // or disconnect handler will clean up advertising state
-    if(gap_active_connection_count() == 0) {
+    /* Only call set_non_discoverable when we're pausing advertising for
+     * scan/connect (enable_adv still true). During full shutdown (enable_adv
+     * false), furi_hal_bt does SHCI reset which wipes everything — calling
+     * HCI commands during teardown races with the shutdown and causes error 12. */
+    if(gap->enable_adv && gap_active_connection_count() == 0 &&
+       (gap->activities & GapActivityAdvertising)) {
         tBleStatus ret = aci_gap_set_non_discoverable();
         if(ret != BLE_STATUS_SUCCESS) {
-            FURI_LOG_E(TAG, "set_non_discoverable failed %d", ret);
+            FURI_LOG_W(TAG, "set_non_discoverable returned %d (non-fatal)", ret);
         }
     }
 
     gap->activities &= ~GapActivityAdvertising;
     gap->adv_fast = false;
-    // Only go Idle if nothing else is active
     if(gap->activities == 0) {
         gap->state = GapStateIdle;
     }
@@ -798,7 +799,8 @@ static void gap_advertise_stop(void) {
     gap->on_event_cb(event, gap->context);
 }
 
-/* Disconnect all active connections (for shutdown/profile switch) */
+/* Disconnect all active connections (for dual-role apps) */
+__attribute__((unused))
 static void gap_disconnect_all(void) {
     for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
         if(gap->service.connections[i].active) {
@@ -976,15 +978,8 @@ static int32_t gap_app(void* context) {
                 gap_advertise_start(GapStateAdvLowPower);
             }
         } else if(command == GapCommandAdvStop) {
-            /* Full shutdown: terminate connections first (synchronous on this thread),
-             * then stop advertising. This is the profile-switch / BT restart path. */
-            if(gap_active_connection_count() > 0) {
-                gap_disconnect_all();
-                /* Brief wait for disconnections to process at HCI level */
-                furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
-                furi_delay_ms(50);
-                furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
-            }
+            /* Stop advertising. Connection teardown is handled by furi_hal_bt
+             * directly — don't fight its shutdown sequence. */
             gap_advertise_stop();
         } else if(command == GapCommandScanStart) {
             /* Try scanning without stopping advertising — the STM32WB55 Full stack
