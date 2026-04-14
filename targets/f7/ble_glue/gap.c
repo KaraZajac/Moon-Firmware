@@ -241,15 +241,18 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         }
         furi_delay_us(666 + 666);
 
-        /* Restart advertising if no peripheral connection exists and
-         * advertising was stopped or is desired */
+        /* Restart advertising if needed — queue the command instead of calling
+         * gap_advertise_start() directly, because we're on the BLE event thread
+         * holding the state_mutex. Direct HCI calls here would block the event
+         * thread and starve the TX notification buffer (causing error 100). */
         if(gap->enable_adv && gap_active_connection_count() == 0) {
             gap->was_advertising = false;
-            gap_advertise_start(GapStateAdvFast);
+            GapCommand adv_cmd = GapCommandAdvFast;
+            furi_message_queue_put(gap->command_queue, &adv_cmd, 0);
         } else if(gap->enable_adv && was_central && gap->was_advertising) {
-            // Central disconnected, restart advertising for peripheral
             gap->was_advertising = false;
-            gap_advertise_start(GapStateAdvFast);
+            GapCommand adv_cmd = GapCommandAdvFast;
+            furi_message_queue_put(gap->command_queue, &adv_cmd, 0);
         }
 
         GapEvent event = {.type = GapEventTypeDisconnected};
@@ -340,11 +343,14 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 }
             } else {
                 /* Central role: restart advertising so other devices can still
-                 * connect to our peripheral services (dual-role support) */
+                 * connect to our peripheral services (dual-role support).
+                 * Queue the command — don't call gap_advertise_start() directly
+                 * from the event thread (blocks TX notifications). */
                 if(gap->was_advertising && gap->enable_adv) {
-                    FURI_LOG_I(TAG, "Restarting advertising after central connect");
+                    FURI_LOG_I(TAG, "Queuing advertising restart after central connect");
                     gap->was_advertising = false;
-                    gap_advertise_start(GapStateAdvFast);
+                    GapCommand adv_cmd = GapCommandAdvFast;
+                    furi_message_queue_put(gap->command_queue, &adv_cmd, 0);
                 }
             }
         } break;
@@ -559,7 +565,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 }
                 if(gap->was_advertising && gap->enable_adv) {
                     gap->was_advertising = false;
-                    gap_advertise_start(GapStateAdvFast);
+                    GapCommand adv_cmd = GapCommandAdvFast;
+                    furi_message_queue_put(gap->command_queue, &adv_cmd, 0);
                 }
             }
             break;
