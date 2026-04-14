@@ -821,11 +821,10 @@ void gap_start_advertising(void) {
 
 void gap_stop_advertising(void) {
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
-    if(gap->activities & GapActivityAdvertising || gap_active_connection_count() > 0) {
-        FURI_LOG_I(TAG, "Stop advertising + disconnect all");
+    if(gap->activities || gap_active_connection_count() > 0 ||
+       gap->state > GapStateIdle) {
+        FURI_LOG_I(TAG, "Stop advertising (full shutdown)");
         gap->enable_adv = false;
-        // Disconnect all connections (profile switch path)
-        gap_disconnect_all();
         GapCommand command = GapCommandAdvStop;
         furi_check(furi_message_queue_put(gap->command_queue, &command, 0) == FuriStatusOk);
     }
@@ -977,6 +976,15 @@ static int32_t gap_app(void* context) {
                 gap_advertise_start(GapStateAdvLowPower);
             }
         } else if(command == GapCommandAdvStop) {
+            /* Full shutdown: terminate connections first (synchronous on this thread),
+             * then stop advertising. This is the profile-switch / BT restart path. */
+            if(gap_active_connection_count() > 0) {
+                gap_disconnect_all();
+                /* Brief wait for disconnections to process at HCI level */
+                furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+                furi_delay_ms(50);
+                furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+            }
             gap_advertise_stop();
         } else if(command == GapCommandScanStart) {
             /* Try scanning without stopping advertising — the STM32WB55 Full stack
