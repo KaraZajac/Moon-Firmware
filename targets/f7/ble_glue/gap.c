@@ -774,9 +774,14 @@ static void gap_advertise_stop(void) {
     FURI_LOG_D(TAG, "Stop advertising");
     furi_timer_stop(gap->advertise_timer);
 
-    tBleStatus ret = aci_gap_set_non_discoverable();
-    if(ret != BLE_STATUS_SUCCESS) {
-        FURI_LOG_E(TAG, "set_non_discoverable failed %d", ret);
+    // set_non_discoverable returns BLE_STATUS_COMMAND_DISALLOWED (12) when
+    // connections are active — skip it in that case, the BLE stack reinit
+    // or disconnect handler will clean up advertising state
+    if(gap_active_connection_count() == 0) {
+        tBleStatus ret = aci_gap_set_non_discoverable();
+        if(ret != BLE_STATUS_SUCCESS) {
+            FURI_LOG_E(TAG, "set_non_discoverable failed %d", ret);
+        }
     }
 
     gap->activities &= ~GapActivityAdvertising;
