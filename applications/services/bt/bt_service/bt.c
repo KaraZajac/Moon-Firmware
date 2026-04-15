@@ -267,22 +267,31 @@ static bool bt_on_gap_event_callback(GapEvent event, void* context) {
         furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial);
 
     if(event.type == GapEventTypeConnected) {
-        // Update status bar
-        bt->status = BtStatusConnected;
-        do_update_status = true;
-        bt_open_rpc_connection(bt);
-        // Update battery level
-        PowerInfo info;
-        power_get_info(bt->power, &info);
-        BtMessage message = {.type = BtMessageTypeUpdateStatus};
-        message.type = BtMessageTypeUpdateBatteryLevel;
-        message.data.battery_level = info.charge;
-        furi_check(
-            furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
+        /* Only peripheral connections trigger RPC/status — central connections
+         * are managed by the app that initiated them, not the BT service.
+         * Note: gap.c already filters this (only fires Connected for peripheral
+         * pairing complete), but be explicit here for safety. */
+        if(!event.is_central) {
+            bt->status = BtStatusConnected;
+            do_update_status = true;
+            bt_open_rpc_connection(bt);
+            // Update battery level
+            PowerInfo info;
+            power_get_info(bt->power, &info);
+            BtMessage message = {.type = BtMessageTypeUpdateStatus};
+            message.type = BtMessageTypeUpdateBatteryLevel;
+            message.data.battery_level = info.charge;
+            furi_check(
+                furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) ==
+                FuriStatusOk);
+        }
         ret = true;
     } else if(event.type == GapEventTypeDisconnected) {
-        if(current_profile_is_serial && bt->rpc_session) {
-            FURI_LOG_I(TAG, "Close RPC connection");
+        /* Only close RPC when the PERIPHERAL connection drops.
+         * A central-role disconnect (e.g. Meshtastic node going away)
+         * must NOT kill the phone's RPC session. */
+        if(!event.is_central && current_profile_is_serial && bt->rpc_session) {
+            FURI_LOG_I(TAG, "Close RPC connection (peripheral disconnected)");
             ble_profile_serial_set_rpc_active(
                 bt->current_profile, FuriHalBtSerialRpcStatusNotActive);
             furi_event_flag_set(bt->rpc_event, BT_RPC_EVENT_DISCONNECTED);
@@ -290,14 +299,26 @@ static bool bt_on_gap_event_callback(GapEvent event, void* context) {
             ble_profile_serial_set_event_callback(bt->current_profile, 0, NULL, NULL);
             bt->rpc_session = NULL;
         }
+        if(!event.is_central) {
+            bt->status = BtStatusAdvertising;
+            do_update_status = true;
+        }
         ret = true;
     } else if(event.type == GapEventTypeStartAdvertising) {
-        bt->status = BtStatusAdvertising;
-        do_update_status = true;
+        /* Don't overwrite Connected status — we can be advertising while
+         * connected (dual-role: peripheral connected + advertising for
+         * more connections or central discovery). */
+        if(bt->status != BtStatusConnected) {
+            bt->status = BtStatusAdvertising;
+            do_update_status = true;
+        }
         ret = true;
     } else if(event.type == GapEventTypeStopAdvertising) {
-        bt->status = BtStatusOff;
-        do_update_status = true;
+        /* Only go to Off if not connected — otherwise stay Connected */
+        if(bt->status != BtStatusConnected) {
+            bt->status = BtStatusOff;
+            do_update_status = true;
+        }
         ret = true;
     } else if(event.type == GapEventTypePinCodeShow) {
         BtMessage message = {

@@ -36,6 +36,8 @@ typedef union {
 typedef struct {
     GapEventType type;
     GapEventData data;
+    uint16_t connection_handle; /**< BLE connection handle (0 if not applicable) */
+    bool is_central;            /**< true if this event is for a central-role connection */
 } GapEvent;
 
 typedef bool (*GapEventCallback)(GapEvent event, void* context);

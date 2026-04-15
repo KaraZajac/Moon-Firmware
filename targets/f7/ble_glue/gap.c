@@ -266,7 +266,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             furi_message_queue_put(gap->command_queue, &adv_cmd, 0);
         }
 
-        GapEvent event = {.type = GapEventTypeDisconnected};
+        GapEvent event = {
+            .type = GapEventTypeDisconnected,
+            .connection_handle = disc_handle,
+            .is_central = was_central,
+        };
         gap->on_event_cb(event, gap->context);
     } break;
 
@@ -516,7 +520,12 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             } else {
                 FURI_LOG_I(TAG, "Pass key request event. Pin: %06ld", pin);
             }
-            GapEvent event = {.type = GapEventTypePinCodeShow, .data.pin_code = pin};
+            GapEvent event = {
+                .type = GapEventTypePinCodeShow,
+                .data.pin_code = pin,
+                .connection_handle = pk_handle,
+                .is_central = gap_is_connection_central(pk_handle),
+            };
             gap->on_event_cb(event, gap->context);
         } break;
 
@@ -525,7 +534,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             FURI_LOG_I(TAG, "Rx MTU size: %d", pr->Server_RX_MTU);
             // Set maximum packet size given header size is 3 bytes
             GapEvent event = {
-                .type = GapEventTypeUpdateMTU, .data.max_packet_size = pr->Server_RX_MTU - 3};
+                .type = GapEventTypeUpdateMTU,
+                .data.max_packet_size = pr->Server_RX_MTU - 3,
+                .connection_handle = pr->Connection_Handle,
+                .is_central = gap_is_connection_central(pr->Connection_Handle),
+            };
             gap->on_event_cb(event, gap->context);
         } break;
 
@@ -571,7 +584,12 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 (aci_gap_numeric_comparison_value_event_rp0*)blue_evt->data;
             uint32_t pin = nc_evt->Numeric_Value;
             FURI_LOG_I(TAG, "Verify numeric comparison: %06lu", pin);
-            GapEvent event = {.type = GapEventTypePinCodeVerify, .data.pin_code = pin};
+            GapEvent event = {
+                .type = GapEventTypePinCodeVerify,
+                .data.pin_code = pin,
+                .connection_handle = nc_evt->Connection_Handle,
+                .is_central = gap_is_connection_central(nc_evt->Connection_Handle),
+            };
             bool result = gap->on_event_cb(event, gap->context);
             aci_gap_numeric_comparison_value_confirm_yesno(nc_evt->Connection_Handle, result);
             break;
@@ -592,7 +610,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 if(!pair_is_central) {
                     // Only notify BT service for peripheral connections (phone companion)
                     // Central connections (our app) handle pairing completion internally
-                    GapEvent event = {.type = GapEventTypeConnected};
+                    GapEvent event = {
+                        .type = GapEventTypeConnected,
+                        .connection_handle = pairing_complete->Connection_Handle,
+                        .is_central = false,
+                    };
                     gap->on_event_cb(event, gap->context); //-V595
                 }
             }
