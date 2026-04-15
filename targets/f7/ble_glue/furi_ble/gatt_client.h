@@ -38,6 +38,7 @@ typedef enum {
 
 typedef struct {
     BleGattClientEventType type;
+    uint16_t connection_handle; /**< Connection this event belongs to */
     union {
         struct {
             BleGattService* services;
@@ -72,8 +73,18 @@ void ble_gatt_client_init(void);
 /** Deinitialize GATT client (unregister event handler) */
 void ble_gatt_client_deinit(void);
 
-/** Set GATT client event callback */
-void ble_gatt_client_set_callback(BleGattClientCallback callback, void* context);
+/** Set GATT client event callback for a specific connection.
+ *  Each connection can have its own callback and context.
+ *  Call with callback=NULL to unregister a connection.
+ *
+ *  @param connection_handle  BLE connection handle
+ *  @param callback           event callback, or NULL to unregister
+ *  @param context            user context passed to callback
+ */
+void ble_gatt_client_set_callback(
+    uint16_t connection_handle,
+    BleGattClientCallback callback,
+    void* context);
 
 /** Discover all primary services on a connected device */
 bool ble_gatt_client_discover_services(uint16_t connection_handle);

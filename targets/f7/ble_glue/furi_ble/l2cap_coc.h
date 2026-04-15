@@ -23,6 +23,7 @@ typedef enum {
 typedef struct {
     BleL2capCocEventType type;
     uint8_t channel_index;
+    uint16_t connection_handle; /**< BLE connection this channel belongs to */
     union {
         struct {
             uint16_t peer_mtu;
@@ -50,8 +51,18 @@ void ble_l2cap_coc_init(void);
 /** Deinitialize L2CAP CoC subsystem */
 void ble_l2cap_coc_deinit(void);
 
-/** Set event callback */
-void ble_l2cap_coc_set_callback(BleL2capCocCallback callback, void* context);
+/** Set event callback for a specific connection.
+ *  Each connection can have its own callback and context.
+ *  Call with callback=NULL to unregister.
+ *
+ *  @param connection_handle  BLE connection handle
+ *  @param callback           event callback, or NULL to unregister
+ *  @param context            user context
+ */
+void ble_l2cap_coc_set_callback(
+    uint16_t connection_handle,
+    BleL2capCocCallback callback,
+    void* context);
 
 /** Initiate a CoC connection on an established BLE link.
  *  @param conn_handle   BLE connection handle

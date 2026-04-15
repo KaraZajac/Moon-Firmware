@@ -676,7 +676,7 @@ Function,+,ble_gatt_client_discover_services,_Bool,uint16_t
 Function,+,ble_gatt_client_exchange_mtu,_Bool,uint16_t
 Function,+,ble_gatt_client_init,void,
 Function,+,ble_gatt_client_read,_Bool,"uint16_t, uint16_t"
-Function,+,ble_gatt_client_set_callback,void,"BleGattClientCallback, void*"
+Function,+,ble_gatt_client_set_callback,void,"uint16_t, BleGattClientCallback, void*"
 Function,+,ble_gatt_client_subscribe_notifications,_Bool,"uint16_t, uint16_t, _Bool"
 Function,+,ble_gatt_client_write,_Bool,"uint16_t, uint16_t, const uint8_t*, uint16_t"
 Function,+,ble_gatt_service_add,_Bool,"uint8_t, const Service_UUID_t*, uint8_t, uint8_t, uint16_t*"
@@ -704,7 +704,7 @@ Function,+,ble_l2cap_coc_disconnect,_Bool,uint8_t
 Function,+,ble_l2cap_coc_flow_control,_Bool,"uint8_t, uint16_t"
 Function,+,ble_l2cap_coc_init,void,
 Function,+,ble_l2cap_coc_send,_Bool,"uint8_t, const uint8_t*, uint16_t"
-Function,+,ble_l2cap_coc_set_callback,void,"BleL2capCocCallback, void*"
+Function,+,ble_l2cap_coc_set_callback,void,"uint16_t, BleL2capCocCallback, void*"
 Function,-,ble_profile_hid_consumer_key_press,_Bool,"FuriHalBleProfileBase*, uint16_t"
 Function,-,ble_profile_hid_consumer_key_release,_Bool,"FuriHalBleProfileBase*, uint16_t"
 Function,-,ble_profile_hid_consumer_key_release_all,_Bool,FuriHalBleProfileBase*

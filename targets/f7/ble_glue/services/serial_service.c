@@ -3,6 +3,7 @@
 #include <ble/ble.h>
 #include <furi_ble/event_dispatcher.h>
 #include <furi_ble/gatt.h>
+#include <gap.h>
 
 #include <furi.h>
 
@@ -228,13 +229,22 @@ bool ble_svc_serial_update_tx(BleServiceSerial* serial_svc, uint8_t* data, uint1
         return false;
     }
 
+    /* Target peripheral connection specifically — in dual-connection mode,
+     * conn_handle=0 would notify ALL connections including central-role ones
+     * that shouldn't receive serial service notifications. */
+    uint16_t conn_handle = gap_get_connection_handle_by_role(false);
+    if(conn_handle == 0) {
+        FURI_LOG_W(TAG, "No peripheral connection for TX notification");
+        return false;
+    }
+
     for(uint16_t remained = data_len; remained > 0;) {
         uint8_t value_len = MIN(BLE_SVC_SERIAL_CHAR_VALUE_LEN_MAX, remained);
         uint16_t value_offset = data_len - remained;
         remained -= value_len;
 
         tBleStatus result = aci_gatt_update_char_value_ext(
-            0,
+            conn_handle,
             serial_svc->svc_handle,
             serial_svc->chars[SerialSvcGattCharacteristicTx].handle,
             remained ? 0x00 : 0x01, /* 0x01 = notification (was 0x02 = indication) */
