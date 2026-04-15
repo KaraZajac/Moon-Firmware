@@ -39,8 +39,6 @@ void HW_IPCC_Rx_Handler(void) {
 void HW_IPCC_Tx_Handler(void) {
     if(HW_IPCC_TX_PENDING(HW_IPCC_SYSTEM_CMD_RSP_CHANNEL)) {
         HW_IPCC_SYS_CmdEvtHandler();
-    } else if(HW_IPCC_TX_PENDING(HW_IPCC_SYSTEM_CMD_RSP_CHANNEL)) {
-        HW_IPCC_SYS_CmdEvtHandler();
     } else if(HW_IPCC_TX_PENDING(HW_IPCC_MM_RELEASE_BUFFER_CHANNEL)) {
         HW_IPCC_MM_FreeBufHandler();
     } else if(HW_IPCC_TX_PENDING(HW_IPCC_HCI_ACL_DATA_CHANNEL)) {
