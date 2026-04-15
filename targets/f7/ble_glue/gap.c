@@ -72,6 +72,7 @@ typedef enum {
     GapCommandAdvStop,
     GapCommandScanStart,
     GapCommandScanStop,
+    GapCommandVerifyParams, // deferred connection parameter verification
     GapCommandKillThread,
 } GapCommand;
 
@@ -277,7 +278,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
             gap->connection_params.slave_latency = event->Conn_Latency;
             gap->connection_params.supervisor_timeout = event->Supervision_Timeout;
             FURI_LOG_I(TAG, "Connection parameters event complete");
-            gap_verify_connection_parameters(gap, event->Connection_Handle);
+            // Queue verification to gap_app thread — don't make blocking HCI calls here
+            {
+                GapCommand cmd = GapCommandVerifyParams;
+                furi_message_queue_put(gap->command_queue, &cmd, 0);
+            }
             break;
         }
 
@@ -287,13 +292,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 FURI_LOG_E(
                     TAG, "Update PHY failed, status %d", evt_le_phy_update_complete->Status);
             } else {
+                // Read PHY directly from the event — no blocking HCI call needed
                 FURI_LOG_I(TAG, "Update PHY succeed");
-            }
-            ret = hci_le_read_phy(evt_le_phy_update_complete->Connection_Handle, &tx_phy, &rx_phy);
-            if(ret) {
-                FURI_LOG_E(TAG, "Read PHY failed, status: %d", ret);
-            } else {
-                FURI_LOG_I(TAG, "PHY Params TX = %d, RX = %d ", tx_phy, rx_phy);
+                FURI_LOG_I(TAG, "PHY Params TX = %d, RX = %d",
+                    evt_le_phy_update_complete->TX_PHY,
+                    evt_le_phy_update_complete->RX_PHY);
             }
             break;
 
@@ -337,7 +340,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 furi_timer_stop(gap->advertise_timer);
                 gap->activities &= ~GapActivityAdvertising;
                 gap->adv_fast = false;
-                gap_verify_connection_parameters(gap, event->Connection_Handle);
+                // Queue param verification to gap_app thread (avoid blocking event thread)
+                {
+                    GapCommand cmd = GapCommandVerifyParams;
+                    furi_message_queue_put(gap->command_queue, &cmd, 0);
+                }
                 if(gap->config->pairing_method != GapPairingNone) {
                     aci_gap_slave_security_req(event->Connection_Handle);
                 }
@@ -1044,6 +1051,17 @@ static int32_t gap_app(void* context) {
                    !(gap->activities & GapActivityAdvertising)) {
                     gap->was_advertising = false;
                     gap_advertise_start(GapStateAdvFast);
+                }
+            }
+        } else if(command == GapCommandVerifyParams) {
+            // Deferred connection parameter verification — safe to make HCI calls here
+            // Use internal slot search (we already hold the mutex, can't call public API)
+            for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+                if(gap->service.connections[i].active &&
+                   !gap->service.connections[i].is_central) {
+                    gap_verify_connection_parameters(
+                        gap, gap->service.connections[i].handle);
+                    break;
                 }
             }
         }
