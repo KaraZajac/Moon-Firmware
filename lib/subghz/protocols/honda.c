@@ -7,6 +7,12 @@
 #include "../blocks/math.h"
 #include "../blocks/custom_btn_i.h"
 
+static inline uint8_t popcount8(uint8_t x) {
+    x = x - ((x >> 1) & 0x55);
+    x = (x & 0x33) + ((x >> 2) & 0x33);
+    return (x + (x >> 4)) & 0x0F;
+}
+
 #define TAG "SubGhzProtocolHonda"
 
 static const SubGhzBlockConst subghz_protocol_honda_const = {
@@ -543,7 +549,7 @@ static bool _honda_try_decode_polarity(SubGhzProtocolDecoderHonda* inst, bool in
 
             uint8_t xor_check = _honda_xor_checksum(decoded, 8);
             if(xor_check == decoded[8] ||
-               __builtin_popcount(xor_check ^ decoded[8]) <= 1) {
+               popcount8(xor_check ^ decoded[8]) <= 1) {
                 inst->frame = f;
                 inst->frame_valid = true;
                 FURI_LOG_I(

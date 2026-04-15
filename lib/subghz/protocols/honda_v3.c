@@ -28,6 +28,12 @@
 #include "honda_v3.h"
 
 #include <furi.h>
+
+static inline uint8_t popcount8(uint8_t x) {
+    x = x - ((x >> 1) & 0x55);
+    x = (x & 0x33) + ((x >> 2) & 0x33);
+    return (x + (x >> 4)) & 0x0F;
+}
 #include <furi_hal.h>
 #include <lib/subghz/blocks/const.h>
 #include <lib/subghz/blocks/decoder.h>
@@ -413,7 +419,7 @@ static bool ook_validate_frame(SubGhzProtocolDecoderHondaV3OOK* inst) {
 
     uint8_t xchk = ook_checksum(natural);
     if(xchk != natural[8]) {
-        if(__builtin_popcount(xchk ^ natural[8]) > 1) return false;
+        if(popcount8(xchk ^ natural[8]) > 1) return false;
     }
 
     inst->frame       = f;
@@ -1547,7 +1553,7 @@ static bool fsk_try_decode_polarity(
            f.serial != 0x0FFFFFFFu) {
             uint8_t xchk = fsk_xor_checksum(decoded, 8u);
             if(xchk == decoded[8] ||
-               __builtin_popcount(xchk ^ decoded[8]) <= 1) {
+               popcount8(xchk ^ decoded[8]) <= 1) {
                 inst->frame       = f;
                 inst->frame_valid = true;
                 FURI_LOG_I(TAG,
@@ -1569,7 +1575,7 @@ static bool fsk_try_decode_polarity(
            f.serial != 0x0FFFFFFFu) {
             uint8_t xchk = fsk_xor_checksum(decoded, 8u);
             if(xchk == decoded[8] ||
-               __builtin_popcount(xchk ^ decoded[8]) <= 1) {
+               popcount8(xchk ^ decoded[8]) <= 1) {
                 inst->frame       = f;
                 inst->frame_valid = true;
                 FURI_LOG_I(TAG,

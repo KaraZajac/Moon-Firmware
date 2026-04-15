@@ -10,6 +10,12 @@
 #include "../blocks/math.h"
 #include "../blocks/custom_btn_i.h"
 
+static inline uint8_t popcount8(uint8_t x) {
+    x = x - ((x >> 1) & 0x55);
+    x = (x & 0x33) + ((x >> 2) & 0x33);
+    return (x + (x >> 4)) & 0x0F;
+}
+
 #define TAG "SubGhzProtocolHondaHF"
 
 static const SubGhzBlockConst subghz_protocol_honda_hf_const = {
@@ -254,7 +260,7 @@ static bool _hf_validate_frame(SubGhzProtocolDecoderHondaHF* inst) {
     uint8_t xor_val = _hf_xor_checksum(natural);
     if(xor_val != natural[8]) {
         /* Allow 1-bit tolerance for noisy captures */
-        if(__builtin_popcount(xor_val ^ natural[8]) > 1) return false;
+        if(popcount8(xor_val ^ natural[8]) > 1) return false;
     }
 
     inst->frame = f;

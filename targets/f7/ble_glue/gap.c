@@ -210,9 +210,6 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
     evt_le_meta_event* meta_evt;
     evt_blecore_aci* blue_evt;
     hci_le_phy_update_complete_event_rp0* evt_le_phy_update_complete;
-    uint8_t tx_phy;
-    uint8_t rx_phy;
-    tBleStatus ret = BLE_STATUS_INVALID_PARAMS;
 
     event_pckt = (hci_event_pckt*)((hci_uart_pckt*)pckt)->data;
 
