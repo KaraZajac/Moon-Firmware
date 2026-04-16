@@ -124,3 +124,17 @@ bool ble_profile_serial_tx(FuriHalBleProfileBase* profile, uint8_t* data, uint16
 
     return ble_svc_serial_update_tx(serial_profile->serial_svc, data, size);
 }
+
+void ble_profile_serial_get_stats(FuriHalBleProfileBase* profile, BleServiceSerialStats* stats) {
+    furi_check(profile && (profile->config == ble_profile_serial));
+
+    BleProfileSerial* serial_profile = (BleProfileSerial*)profile;
+    ble_svc_serial_get_stats(serial_profile->serial_svc, stats);
+}
+
+void ble_profile_serial_reset_stats(FuriHalBleProfileBase* profile) {
+    furi_check(profile && (profile->config == ble_profile_serial));
+
+    BleProfileSerial* serial_profile = (BleProfileSerial*)profile;
+    ble_svc_serial_reset_stats(serial_profile->serial_svc);
+}

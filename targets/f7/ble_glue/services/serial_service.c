@@ -71,7 +71,14 @@ struct BleServiceSerial {
     SerialServiceEventCallback callback;
     void* context;
     GapSvcEventHandler* event_handler;
+    BleServiceSerialStats stats;
 };
+
+/* Saturating uint32_t increment — avoids wrap-around masking real volume. */
+static inline void ble_svc_serial_stat_inc(uint32_t* counter, uint32_t delta) {
+    uint32_t current = *counter;
+    *counter = (UINT32_MAX - current < delta) ? UINT32_MAX : current + delta;
+}
 
 static BleEventAckStatus ble_svc_serial_event_handler(void* event, void* context) {
     BleServiceSerial* serial_svc = (BleServiceSerial*)context;
@@ -91,6 +98,8 @@ static BleEventAckStatus ble_svc_serial_event_handler(void* event, void* context
                 attribute_modified->Attr_Handle ==
                 serial_svc->chars[SerialSvcGattCharacteristicRx].handle + 1) {
                 FURI_LOG_D(TAG, "Received %d bytes", attribute_modified->Attr_Data_Length);
+                ble_svc_serial_stat_inc(
+                    &serial_svc->stats.rx_bytes, attribute_modified->Attr_Data_Length);
                 if(serial_svc->callback) {
                     furi_check(
                         furi_mutex_acquire(serial_svc->buff_size_mtx, FuriWaitForever) ==
@@ -101,6 +110,7 @@ static BleEventAckStatus ble_svc_serial_event_handler(void* event, void* context
                             "Received %d, while was ready to receive %d bytes. Can lead to buffer overflow!",
                             attribute_modified->Attr_Data_Length,
                             serial_svc->bytes_ready_to_receive);
+                        ble_svc_serial_stat_inc(&serial_svc->stats.rx_overruns, 1);
                     }
                     serial_svc->bytes_ready_to_receive -= MIN(
                         serial_svc->bytes_ready_to_receive, attribute_modified->Attr_Data_Length);
@@ -130,6 +140,7 @@ static BleEventAckStatus ble_svc_serial_event_handler(void* event, void* context
             }
         } else if(blecore_evt->ecode == ACI_GATT_SERVER_CONFIRMATION_VSEVT_CODE) {
             FURI_LOG_T(TAG, "Ack received");
+            ble_svc_serial_stat_inc(&serial_svc->stats.tx_acked, 1);
             if(serial_svc->callback) {
                 SerialServiceEvent event = {
                     .event = SerialServiceEventTypeDataSent,
@@ -155,6 +166,7 @@ static void
 
 BleServiceSerial* ble_svc_serial_start(void) {
     BleServiceSerial* serial_svc = malloc(sizeof(BleServiceSerial));
+    memset(&serial_svc->stats, 0, sizeof(serial_svc->stats));
 
     serial_svc->event_handler =
         ble_event_dispatcher_register_svc_handler(ble_svc_serial_event_handler, serial_svc);
@@ -201,6 +213,7 @@ void ble_svc_serial_notify_buffer_is_empty(BleServiceSerial* serial_svc) {
     if(serial_svc->bytes_ready_to_receive == 0) {
         FURI_LOG_D(TAG, "Buffer is empty. Notifying client");
         serial_svc->bytes_ready_to_receive = serial_svc->buff_size;
+        ble_svc_serial_stat_inc(&serial_svc->stats.credits_resets, 1);
 
         uint32_t buff_size_reversed = REVERSE_BYTES_U32(serial_svc->buff_size);
         ble_gatt_characteristic_update(
@@ -261,12 +274,14 @@ bool ble_svc_serial_update_tx(BleServiceSerial* serial_svc, uint8_t* data, uint1
                 value_len,
                 data + value_offset);
             if(result == BLE_STATUS_INSUFFICIENT_RESOURCES) {
+                ble_svc_serial_stat_inc(&serial_svc->stats.tx_retries, 1);
                 furi_delay_ms(1);
             }
         }
 
         if(result != BLE_STATUS_SUCCESS) {
             FURI_LOG_E(TAG, "Failed updating TX characteristic: %d", result);
+            ble_svc_serial_stat_inc(&serial_svc->stats.tx_errors, 1);
             /* No indication was queued, so no ACK will arrive — unblock the
              * RPC thread so it can abort the message instead of deadlocking
              * on BT_RPC_EVENT_BUFF_SENT. */
@@ -279,6 +294,7 @@ bool ble_svc_serial_update_tx(BleServiceSerial* serial_svc, uint8_t* data, uint1
             return false;
         }
 
+        ble_svc_serial_stat_inc(&serial_svc->stats.tx_submitted, 1);
         remained -= value_len;
     }
 
@@ -289,4 +305,18 @@ void ble_svc_serial_set_rpc_active(BleServiceSerial* serial_svc, bool active) {
     furi_check(serial_svc);
     ble_svc_serial_update_rpc_char(
         serial_svc, active ? SerialServiceRpcStatusActive : SerialServiceRpcStatusNotActive);
+}
+
+void ble_svc_serial_get_stats(BleServiceSerial* serial_svc, BleServiceSerialStats* stats) {
+    furi_check(serial_svc);
+    furi_check(stats);
+    /* Plain copy — each counter has a single writer thread and aligned
+     * 32-bit reads are atomic on Cortex-M, so no mutex needed for a
+     * best-effort diagnostic snapshot. */
+    *stats = serial_svc->stats;
+}
+
+void ble_svc_serial_reset_stats(BleServiceSerial* serial_svc) {
+    furi_check(serial_svc);
+    memset(&serial_svc->stats, 0, sizeof(serial_svc->stats));
 }

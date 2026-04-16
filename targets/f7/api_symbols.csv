@@ -716,7 +716,9 @@ Function,-,ble_profile_hid_mouse_press,_Bool,"FuriHalBleProfileBase*, uint8_t"
 Function,-,ble_profile_hid_mouse_release,_Bool,"FuriHalBleProfileBase*, uint8_t"
 Function,-,ble_profile_hid_mouse_release_all,_Bool,FuriHalBleProfileBase*
 Function,-,ble_profile_hid_mouse_scroll,_Bool,"FuriHalBleProfileBase*, int8_t"
+Function,+,ble_profile_serial_get_stats,void,"FuriHalBleProfileBase*, BleServiceSerialStats*"
 Function,+,ble_profile_serial_notify_buffer_is_empty,void,FuriHalBleProfileBase*
+Function,+,ble_profile_serial_reset_stats,void,FuriHalBleProfileBase*
 Function,+,ble_profile_serial_set_event_callback,void,"FuriHalBleProfileBase*, uint16_t, FuriHalBtSerialCallback, void*"
 Function,+,ble_profile_serial_set_rpc_active,void,"FuriHalBleProfileBase*, _Bool"
 Function,+,ble_profile_serial_tx,_Bool,"FuriHalBleProfileBase*, uint8_t*, uint16_t"
@@ -732,7 +734,9 @@ Function,-,ble_svc_hid_stop,void,BleServiceHid*
 Function,-,ble_svc_hid_update_info,_Bool,"BleServiceHid*, uint8_t*"
 Function,-,ble_svc_hid_update_input_report,_Bool,"BleServiceHid*, uint8_t, uint8_t*, uint16_t"
 Function,-,ble_svc_hid_update_report_map,_Bool,"BleServiceHid*, const uint8_t*, uint16_t"
+Function,+,ble_svc_serial_get_stats,void,"BleServiceSerial*, BleServiceSerialStats*"
 Function,+,ble_svc_serial_notify_buffer_is_empty,void,BleServiceSerial*
+Function,+,ble_svc_serial_reset_stats,void,BleServiceSerial*
 Function,+,ble_svc_serial_set_callbacks,void,"BleServiceSerial*, uint16_t, SerialServiceEventCallback, void*"
 Function,+,ble_svc_serial_set_rpc_active,void,"BleServiceSerial*, _Bool"
 Function,+,ble_svc_serial_start,BleServiceSerial*,

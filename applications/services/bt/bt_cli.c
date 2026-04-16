@@ -7,8 +7,10 @@
 
 #include <ble/ble.h>
 #include "bt_service/bt.h"
+#include "bt_service/bt_i.h"
 #include "bt_service/bt_settings_api_i.h"
 #include <profiles/serial_profile.h>
+#include <services/serial_service.h>
 
 static void bt_cli_command_hci_info(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(pipe);
@@ -132,6 +134,54 @@ static void bt_cli_command_packet_tx(PipeSide* pipe, FuriString* args, void* con
     } while(false);
 }
 
+static void bt_cli_command_serial_stats(PipeSide* pipe, FuriString* args, void* context) {
+    UNUSED(pipe);
+    UNUSED(context);
+
+    Bt* bt = furi_record_open(RECORD_BT);
+
+    do {
+        if(!bt->current_profile ||
+           !furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial)) {
+            printf("Serial profile not active\r\n");
+            break;
+        }
+
+        FuriString* sub = furi_string_alloc();
+        bool do_reset = args_read_string_and_trim(args, sub) &&
+                        furi_string_cmp_str(sub, "reset") == 0;
+        furi_string_free(sub);
+
+        if(do_reset) {
+            ble_profile_serial_reset_stats(bt->current_profile);
+            printf("Serial stats reset\r\n");
+            break;
+        }
+
+        BleServiceSerialStats stats;
+        ble_profile_serial_get_stats(bt->current_profile, &stats);
+
+        /* tx_submitted counts fragments; a healthy link has tx_acked catching
+         * up closely behind. Sustained (tx_submitted - tx_acked) growth, a
+         * non-zero tx_errors, or heavy tx_retries indicate a wedged stack
+         * or peer that stopped ACKing. rx_overruns means the peer is
+         * ignoring the FFF4 credit characteristic. */
+        printf("BLE serial stats:\r\n");
+        printf("  TX submitted : %lu\r\n", (unsigned long)stats.tx_submitted);
+        printf("  TX acked     : %lu\r\n", (unsigned long)stats.tx_acked);
+        printf(
+            "  TX in flight : %ld\r\n",
+            (long)((int64_t)stats.tx_submitted - (int64_t)stats.tx_acked));
+        printf("  TX retries   : %lu\r\n", (unsigned long)stats.tx_retries);
+        printf("  TX errors    : %lu\r\n", (unsigned long)stats.tx_errors);
+        printf("  RX bytes     : %lu\r\n", (unsigned long)stats.rx_bytes);
+        printf("  RX overruns  : %lu\r\n", (unsigned long)stats.rx_overruns);
+        printf("  Credit resets: %lu\r\n", (unsigned long)stats.credits_resets);
+    } while(false);
+
+    furi_record_close(RECORD_BT);
+}
+
 static void bt_cli_command_packet_rx(PipeSide* pipe, FuriString* args, void* context) {
     UNUSED(context);
     int channel = 0;
@@ -172,6 +222,7 @@ static void bt_cli_print_usage(void) {
     printf("bt <cmd> <args>\r\n");
     printf("Cmd list:\r\n");
     printf("\thci_info\t - HCI info\r\n");
+    printf("\tserial_stats [reset]\t - BLE serial flow-control diagnostics\r\n");
     if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug) && furi_hal_bt_is_testing_supported()) {
         printf("\ttx_carrier <channel:0-39> <power:0-6>\t - start tx carrier test\r\n");
         printf("\trx_carrier <channel:0-39>\t - start rx carrier test\r\n");
@@ -197,6 +248,10 @@ static void execute(PipeSide* pipe, FuriString* args, void* context) {
         }
         if(furi_string_cmp_str(cmd, "hci_info") == 0) {
             bt_cli_command_hci_info(pipe, args, NULL);
+            break;
+        }
+        if(furi_string_cmp_str(cmd, "serial_stats") == 0) {
+            bt_cli_command_serial_stats(pipe, args, NULL);
             break;
         }
         if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagDebug) && furi_hal_bt_is_testing_supported()) {
