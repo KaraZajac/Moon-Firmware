@@ -35,6 +35,17 @@ void ble_gatt_characteristic_init(
             char_descriptor->data.callback.context, NULL, &char_data_size);
     }
 
+    /* Enc_Key_Size only matters when the characteristic actually demands
+     * encryption via one of the AUTHEN / AUTHOR / ENCRY permission bits.
+     * When security_permissions = ATTR_PERMISSION_NONE the attribute is
+     * meant to be readable / writable over an unencrypted link, and
+     * hard-coding a 10-byte minimum key size here silently forced
+     * encryption anyway — which broke upstream BLE clients (BitChat
+     * Android / iOS, SEOS) that expect unpaired / unbonded access to
+     * their public characteristic. Now: NONE means NONE. */
+    uint8_t min_key_size = (char_descriptor->security_permissions == ATTR_PERMISSION_NONE)
+                               ? 0
+                               : GATT_MIN_READ_KEY_SIZE;
     tBleStatus status = aci_gatt_add_char(
         svc_handle,
         char_descriptor->uuid_type,
@@ -43,7 +54,7 @@ void ble_gatt_characteristic_init(
         char_descriptor->char_properties,
         char_descriptor->security_permissions,
         char_descriptor->gatt_evt_mask,
-        GATT_MIN_READ_KEY_SIZE,
+        min_key_size,
         char_descriptor->is_variable,
         &char_instance->handle);
     if(status) {
