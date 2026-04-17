@@ -1462,6 +1462,22 @@ void gap_set_pairing_method(uint32_t fixed_pin) {
     }
 }
 
+void gap_set_no_pairing(void) {
+    furi_check(gap);
+    aci_gap_set_io_capability(IO_CAP_NO_INPUT_NO_OUTPUT);
+    aci_gap_set_authentication_requirement(
+        0, /* Bonding_Mode: none */
+        MITM_PROTECTION_NOT_REQUIRED,
+        SC_PAIRING_UNSUPPORTED,
+        KEYPRESS_NOT_SUPPORTED,
+        CFG_ENCRYPTION_KEY_SIZE_MIN,
+        CFG_ENCRYPTION_KEY_SIZE_MAX,
+        USE_FIXED_PIN_FOR_PAIRING_FORBIDDEN,
+        0, /* Fixed_Pin (unused) */
+        CFG_IDENTITY_ADDRESS);
+    FURI_LOG_I(TAG, "Auth configured: no pairing, no bonding, IO=NO_IO");
+}
+
 bool gap_pair(uint16_t connection_handle, bool force_rebond) {
     furi_check(gap);
     tBleStatus status = aci_gap_send_pairing_req(connection_handle, force_rebond ? 0x01 : 0x00);

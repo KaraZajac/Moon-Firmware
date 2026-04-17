@@ -186,6 +186,15 @@ void gap_set_fixed_pin(uint32_t pin);
  */
 void gap_set_pairing_method(uint32_t fixed_pin);
 
+/** Configure GAP auth for truly unpaired/unbonded operation.
+ *  IO=NO_INPUT_NO_OUTPUT, MITM=NOT_REQUIRED, LESC=UNSUPPORTED,
+ *  bonding=off, fixed-pin=forbidden. Peers see no usable pairing
+ *  capability and should skip SMP entirely — intended for
+ *  application-layer-secured services like BitChat (Noise_XX over a
+ *  custom characteristic) where BLE link-layer pairing just gets in
+ *  the way. */
+void gap_set_no_pairing(void);
+
 /** Initiate pairing/bonding with the connected peripheral (central role).
  *  Must be called after gap_connect() succeeds and before GATT discovery
  *  if the remote device requires authentication.
