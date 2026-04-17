@@ -88,6 +88,7 @@
 #include "ditec_gol4.h"
 #include "keyfinder.h"
 #include "vag.h"
+#include "vag_v4.h"
 #include "porsche_cayenne.h"
 #include "ford_v0.h"
 #include "psa.h"
