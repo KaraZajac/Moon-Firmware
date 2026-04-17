@@ -87,6 +87,7 @@ const SubGhzProtocol* const subghz_protocol_registry_items[] = {
     &subghz_protocol_ditec_gol4,
     &subghz_protocol_keyfinder,
     &subghz_protocol_vag,
+    &subghz_protocol_vag_v4,
     &subghz_protocol_porsche_cayenne,
     &subghz_protocol_ford_v0,
     &subghz_protocol_psa,
