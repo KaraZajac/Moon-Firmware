@@ -38,11 +38,19 @@
  ******************************************************************************/
 /**
  * Maximum number of simultaneous connections that the device will support.
- * Valid values are from 1 to 8
- * Set to max for compile-time buffer allocation; actual runtime value
- * comes from moon_settings.ble_max_connections (default 2)
+ * Valid values are from 1 to 8. Directly sizes compile-time buffer pools
+ * (MblockCount, prepare-write list) via CFG_BLE_MBLOCK_COUNT; oversizing
+ * here eats core2 SRAM and was empirically observed to corrupt the
+ * peripheral GATT path (Android companion post-discovery reads would
+ * return null, triggering DEPRECATED_FLIPPER disconnect) — even when
+ * SHCI_C2_BLE_Init itself reported success.
+ *
+ * 2 is enough for our dual-role scenario (one peripheral connection to
+ * the phone + one central connection to a BLE peripheral we initiated,
+ * e.g. Meshtastic). Bump only if an app genuinely needs more concurrent
+ * links AND you re-verify peripheral behavior with the Android app.
  */
-#define CFG_BLE_NUM_LINK 8
+#define CFG_BLE_NUM_LINK 2
 
 /**
  * Maximum number of Services that can be stored in the GATT database.

@@ -85,10 +85,12 @@ bool ble_app_init(void) {
     ble_app->hci_mtx = furi_mutex_alloc(FuriMutexTypeNormal);
     ble_app->hci_sem = furi_semaphore_alloc(1, 0);
 
-    // Set runtime BLE connection count from user setting (2-8, default 2)
+    /* Clamp runtime link count to CFG_BLE_NUM_LINK — the compile-time
+     * value sizes the mblock pool, so exceeding it at runtime would
+     * ask core2 for more links than its buffers can back. */
     uint32_t max_conn = moon_settings.ble_max_connections;
-    if(max_conn < 2) max_conn = 2;
-    if(max_conn > 8) max_conn = 8;
+    if(max_conn < 1) max_conn = 1;
+    if(max_conn > CFG_BLE_NUM_LINK) max_conn = CFG_BLE_NUM_LINK;
     ble_init_cmd_packet.Param.NumOfLinks = max_conn;
     FURI_LOG_I(TAG, "BLE max connections: %lu", max_conn);
 
