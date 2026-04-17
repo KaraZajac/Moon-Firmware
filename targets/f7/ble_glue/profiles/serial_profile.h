@@ -31,6 +31,19 @@ extern const FuriHalBleProfileTemplate* const ble_profile_serial;
  */
 bool ble_profile_serial_tx(FuriHalBleProfileBase* profile, uint8_t* data, uint16_t size);
 
+/** Snapshot serial-service diagnostic counters
+ *
+ * @param profile       Profile instance
+ * @param stats         Output struct populated with current counters
+ */
+void ble_profile_serial_get_stats(FuriHalBleProfileBase* profile, BleServiceSerialStats* stats);
+
+/** Zero the serial-service diagnostic counters
+ *
+ * @param profile       Profile instance
+ */
+void ble_profile_serial_reset_stats(FuriHalBleProfileBase* profile);
+
 /** Set BLE RPC status
  *
  * @param profile       Profile instance

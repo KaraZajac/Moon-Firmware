@@ -15,6 +15,13 @@
 #define BT_RPC_EVENT_DISCONNECTED (1UL << 1)
 #define BT_RPC_EVENT_ALL          (BT_RPC_EVENT_BUFF_SENT | BT_RPC_EVENT_DISCONNECTED)
 
+/* Upper bound on how long we'll wait for a single BLE indication to be ACKed
+ * by the peer before abandoning the RPC message. With a healthy link the ACK
+ * arrives within one connection interval (~7.5–45 ms); 2 s is a generous
+ * ceiling that guarantees the RPC thread can never deadlock on a wedged
+ * stack. On timeout we abort the in-flight message and let the peer retry. */
+#define BT_RPC_TX_ACK_TIMEOUT_MS 2000
+
 #define ICON_SPACER 2
 
 static void bt_draw_statusbar_callback(Canvas* canvas, void* context) {
@@ -231,16 +238,31 @@ static void bt_rpc_send_bytes_callback(void* context, uint8_t* bytes, size_t byt
     size_t bytes_sent = 0;
     while(bytes_sent < bytes_len) {
         size_t bytes_remain = bytes_len - bytes_sent;
-        if(bytes_remain > bt->max_packet_size) {
-            ble_profile_serial_tx(bt->current_profile, &bytes[bytes_sent], bt->max_packet_size);
-            bytes_sent += bt->max_packet_size;
-        } else {
-            ble_profile_serial_tx(bt->current_profile, &bytes[bytes_sent], bytes_remain);
-            bytes_sent += bytes_remain;
+        size_t chunk =
+            bytes_remain > bt->max_packet_size ? bt->max_packet_size : bytes_remain;
+
+        /* Abort the whole message on a TX submission failure. Continuing would
+         * leave the RPC thread waiting FuriWaitForever for an ACK that will
+         * never arrive (the indication was never queued on the stack). */
+        if(!ble_profile_serial_tx(bt->current_profile, &bytes[bytes_sent], chunk)) {
+            FURI_LOG_E(TAG, "BLE TX submit failed, aborting RPC message");
+            break;
         }
+        bytes_sent += chunk;
+
         // We want BT_RPC_EVENT_DISCONNECTED to stick, so don't clear
         uint32_t event_flag = furi_event_flag_wait(
-            bt->rpc_event, BT_RPC_EVENT_ALL, FuriFlagWaitAny | FuriFlagNoClear, FuriWaitForever);
+            bt->rpc_event,
+            BT_RPC_EVENT_ALL,
+            FuriFlagWaitAny | FuriFlagNoClear,
+            BT_RPC_TX_ACK_TIMEOUT_MS);
+        if(event_flag == (uint32_t)FuriFlagErrorTimeout) {
+            /* Stack wedged — peer never ACKed. Abort rather than deadlock;
+             * the connection will typically be torn down by supervision
+             * timeout on the peer side, or the peer will retry. */
+            FURI_LOG_E(TAG, "BLE TX ACK timeout, aborting RPC message");
+            break;
+        }
         if(event_flag & BT_RPC_EVENT_DISCONNECTED) {
             break;
         } else {
