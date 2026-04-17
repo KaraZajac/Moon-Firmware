@@ -1,0 +1,13 @@
+App(
+    appid="moon_companion_settings",
+    name="Moon Companion",
+    apptype=FlipperAppType.SETTINGS,
+    entry_point="moon_companion_settings_app",
+    stack_size=2 * 1024,
+    requires=[
+        "gui",
+        "moon_companion",
+    ],
+    order=15,
+    fap_category="assets",
+)
