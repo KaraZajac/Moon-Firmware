@@ -394,7 +394,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 const uint8_t* raw = meta_evt->data;
                 uint8_t num_reports = raw[0];
                 const uint8_t* ptr = &raw[1];
-                const uint8_t* raw_end = raw + meta_evt->datalen;
+                /* meta-event data length = hci plen - 1 byte for `subevent` */
+                const uint8_t* raw_end = raw + (event_pckt->plen - 1);
 
                 furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
                 for(uint8_t i = 0; i < num_reports; i++) {
@@ -449,8 +450,8 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 const uint8_t* raw = meta_evt->data;
                 uint8_t num_reports = raw[0];
                 const uint8_t* ptr = &raw[1];
-                /* Bound the total available data from the HCI event */
-                const uint8_t* raw_end = raw + meta_evt->datalen;
+                /* meta-event data length = hci plen - 1 byte for `subevent` */
+                const uint8_t* raw_end = raw + (event_pckt->plen - 1);
 
                 if(num_reports > 10) {
                     FURI_LOG_W(TAG, "Ext adv: suspicious num_reports=%d, clamping", num_reports);
@@ -561,14 +562,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         } break;
 
         case ACI_GAP_BOND_LOST_VSEVT_CODE: {
-            /* Bond lost event carries Connection_Handle — use it directly
-             * instead of the legacy global handle, which may point to a
-             * different connection in a dual-connection scenario. */
-            aci_gap_bond_lost_event_rp0* bond_lost =
-                (aci_gap_bond_lost_event_rp0*)blue_evt->data;
-            FURI_LOG_D(TAG, "Bond lost event (handle=0x%04X). Start rebonding",
-                bond_lost->Connection_Handle);
-            aci_gap_allow_rebond(bond_lost->Connection_Handle);
+            /* ST's aci_gap_bond_lost event carries no payload in this
+             * copro — fall back to the stored peripheral service handle,
+             * which tracks the bonding (peripheral-role) connection. */
+            FURI_LOG_D(TAG, "Bond lost event. Start rebonding");
+            aci_gap_allow_rebond(gap->service.connection_handle);
         } break;
 
         case ACI_GAP_ADDR_NOT_RESOLVED_VSEVT_CODE:
