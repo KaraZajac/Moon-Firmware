@@ -3,6 +3,7 @@
 #include "app_common.h"
 #include <core/mutex.h>
 #include "furi_ble/event_dispatcher.h"
+#include "furi_ble/gatt_client.h"
 #include <ble/ble.h>
 
 #include <furi_hal.h>
@@ -562,11 +563,26 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
         } break;
 
         case ACI_GAP_BOND_LOST_VSEVT_CODE: {
-            /* ST's aci_gap_bond_lost event carries no payload in this
-             * copro — fall back to the stored peripheral service handle,
-             * which tracks the bonding (peripheral-role) connection. */
-            FURI_LOG_D(TAG, "Bond lost event. Start rebonding");
-            aci_gap_allow_rebond(gap->service.connection_handle);
+            /* ST's aci_gap_bond_lost event carries no payload in this copro.
+             * Bonding is peripheral-side — find the active peripheral
+             * connection directly rather than reading the legacy single-
+             * connection handle, which in a dual-role scenario may point
+             * at a central connection instead. */
+            uint16_t peripheral_handle = 0;
+            for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
+                if(gap->service.connections[i].active &&
+                   !gap->service.connections[i].is_central) {
+                    peripheral_handle = gap->service.connections[i].handle;
+                    break;
+                }
+            }
+            if(peripheral_handle) {
+                FURI_LOG_D(TAG, "Bond lost event (handle=0x%04X). Start rebonding",
+                    peripheral_handle);
+                aci_gap_allow_rebond(peripheral_handle);
+            } else {
+                FURI_LOG_W(TAG, "Bond lost event but no active peripheral connection");
+            }
         } break;
 
         case ACI_GAP_ADDR_NOT_RESOLVED_VSEVT_CODE:
@@ -707,6 +723,12 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
     aci_hal_set_tx_power_level(1, 0x19);
     // Initialize GATT interface
     aci_gatt_init();
+    /* Enable the full GATT event set globally. The default post-reset mask
+     * is narrow, which previously starved the peripheral serial/RPC path
+     * of events the Android companion relies on. Any narrower mask should
+     * be justified — the cost of enabling all events is tiny vs. silent
+     * peripheral breakage. */
+    aci_gatt_set_event_mask(BLE_GATT_FULL_EVENT_MASK);
     // Initialize GAP interface
     // Skip fist symbol AD_TYPE_COMPLETE_LOCAL_NAME
     char* name = gap->service.adv_name + 1;
@@ -888,10 +910,19 @@ static void gap_advertise_stop(void) {
 /* Disconnect all active connections (for dual-role apps) */
 __attribute__((unused))
 static void gap_disconnect_all(void) {
+    /* Snapshot handles under the mutex so a concurrent disconnect event
+     * can't flip `active` between the check and the terminate call. */
+    uint16_t handles[GAP_MAX_CONNECTIONS];
+    uint8_t count = 0;
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
     for(int i = 0; i < GAP_MAX_CONNECTIONS; i++) {
         if(gap->service.connections[i].active) {
-            aci_gap_terminate(gap->service.connections[i].handle, 0x13);
+            handles[count++] = gap->service.connections[i].handle;
         }
+    }
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+    for(uint8_t i = 0; i < count; i++) {
+        aci_gap_terminate(handles[i], 0x13);
     }
 }
 

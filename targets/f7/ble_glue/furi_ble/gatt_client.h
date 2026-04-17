@@ -10,6 +10,34 @@ extern "C" {
 #define BLE_GATT_CLIENT_MAX_SERVICES 16
 #define BLE_GATT_CLIENT_MAX_CHARS    64
 
+/* Full documented GATT event mask for aci_gatt_set_event_mask().
+ * Applies globally (both central/client and peripheral/server roles);
+ * any narrower mask risks starving the peripheral event path, breaking
+ * things like indication-based flow control and Android GATT discovery
+ * when the companion app uses indications. */
+#define BLE_GATT_FULL_EVENT_MASK                                                  \
+    (0x00000001u | /* ACI_GATT_ATTRIBUTE_MODIFIED_EVENT                     */    \
+     0x00000002u | /* ACI_GATT_PROC_TIMEOUT_EVENT                           */    \
+     0x00000004u | /* ACI_ATT_EXCHANGE_MTU_RESP_EVENT                       */    \
+     0x00000008u | /* ACI_ATT_FIND_INFO_RESP_EVENT                          */    \
+     0x00000010u | /* ACI_ATT_FIND_BY_TYPE_VALUE_RESP_EVENT                 */    \
+     0x00000020u | /* ACI_ATT_READ_BY_TYPE_RESP_EVENT                       */    \
+     0x00000040u | /* ACI_ATT_READ_RESP_EVENT                               */    \
+     0x00000080u | /* ACI_ATT_READ_BLOB_RESP_EVENT                          */    \
+     0x00000100u | /* ACI_ATT_READ_MULTIPLE_RESP_EVENT                      */    \
+     0x00000200u | /* ACI_ATT_READ_BY_GROUP_TYPE_RESP_EVENT                 */    \
+     0x00000800u | /* ACI_ATT_PREPARE_WRITE_RESP_EVENT                      */    \
+     0x00001000u | /* ACI_ATT_EXEC_WRITE_RESP_EVENT                         */    \
+     0x00002000u | /* ACI_GATT_INDICATION_EVENT                             */    \
+     0x00004000u | /* ACI_GATT_NOTIFICATION_EVENT                           */    \
+     0x00008000u | /* ACI_GATT_ERROR_RESP_EVENT                             */    \
+     0x00010000u | /* ACI_GATT_PROC_COMPLETE_EVENT                          */    \
+     0x00020000u | /* ACI_GATT_DISC_READ_CHAR_BY_UUID_RESP_EVENT            */    \
+     0x00040000u | /* ACI_GATT_TX_POOL_AVAILABLE_EVENT                      */    \
+     0x00100000u | /* ACI_GATT_READ_EXT_EVENT                               */    \
+     0x00200000u | /* ACI_GATT_INDICATION_EXT_EVENT                         */    \
+     0x00400000u) /* ACI_GATT_NOTIFICATION_EXT_EVENT                        */
+
 typedef struct {
     uint8_t uuid_type; // 1 = 16-bit, 2 = 128-bit
     uint16_t uuid_16;

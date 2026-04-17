@@ -329,23 +329,15 @@ void ble_gatt_client_init(void) {
         gatt_client_handler = ble_event_dispatcher_register_svc_handler(
             gatt_client_event_handler, &gatt_client_sentinel);
 
-        /* Enable extended GATT events. CRITICAL: without this, notifications
-         * larger than 248 bytes arrive with Attribute_Value_Length=0 because
-         * the standard notification event buffer is too small. Enabling
-         * ACI_GATT_NOTIFICATION_EXT_EVENT lets the stack use the extended
-         * event format (0x0C1F) with uint16_t length and larger buffer. */
-        aci_gatt_set_event_mask(
-            0x00000001 | /* ACI_GATT_ATTRIBUTE_MODIFIED_EVENT */
-            0x00000004 | /* ACI_ATT_EXCHANGE_MTU_RESP_EVENT */
-            0x00000020 | /* ACI_ATT_READ_BY_TYPE_RESP_EVENT */
-            0x00000040 | /* ACI_ATT_READ_RESP_EVENT */
-            0x00000200 | /* ACI_ATT_READ_BY_GROUP_TYPE_RESP_EVENT */
-            0x00004000 | /* ACI_GATT_NOTIFICATION_EVENT */
-            0x00008000 | /* ACI_GATT_ERROR_RESP_EVENT */
-            0x00010000 | /* ACI_GATT_PROC_COMPLETE_EVENT */
-            0x00400000   /* ACI_GATT_NOTIFICATION_EXT_EVENT */
-        );
-        FURI_LOG_I(TAG, "GATT client init + extended events enabled");
+        /* Enable the full documented GATT event set. aci_gatt_set_event_mask
+         * is a *global* mask that applies to both central (client) and
+         * peripheral (server) roles — restricting it here would starve the
+         * peripheral path of events (e.g. TX_POOL_AVAILABLE for flow control,
+         * INDICATION_EVENT for indication-based peers). gap.c also sets this
+         * at stack init; this call is defense-in-depth in case a central app
+         * runs first. */
+        aci_gatt_set_event_mask(BLE_GATT_FULL_EVENT_MASK);
+        FURI_LOG_I(TAG, "GATT client init");
     }
 }
 
