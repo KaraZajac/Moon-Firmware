@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.3,,
+Version,+,87.4,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -39,6 +39,7 @@ Header,+,applications/services/input/input.h,,
 Header,+,applications/services/loader/firmware_api/firmware_api.h,,
 Header,+,applications/services/loader/loader.h,,
 Header,+,applications/services/locale/locale.h,,
+Header,+,applications/services/moon_companion/moon_companion.h,,
 Header,+,applications/services/notification/notification.h,,
 Header,+,applications/services/notification/notification_messages.h,,
 Header,+,applications/services/power/power_service/power.h,,
@@ -2389,6 +2390,18 @@ Function,-,mktemp,char*,char*
 Function,+,modf,double,"double, double*"
 Function,-,modff,float,"float, float*"
 Function,-,modfl,long double,"long double, long double*"
+Function,+,moon_companion_begin_pairing,_Bool,"MoonCompanion*, char[7]"
+Function,+,moon_companion_cancel_pairing,void,MoonCompanion*
+Function,+,moon_companion_forget,void,MoonCompanion*
+Function,+,moon_companion_get_position,_Bool,"MoonCompanion*, MoonPosition*, uint32_t"
+Function,+,moon_companion_get_state,MoonConnectionState,MoonCompanion*
+Function,+,moon_companion_get_time,_Bool,"MoonCompanion*, MoonTime*"
+Function,+,moon_companion_is_paired,_Bool,MoonCompanion*
+Function,+,moon_companion_resume,void,MoonCompanion*
+Function,+,moon_companion_send_notification,_Bool,"MoonCompanion*, const char*, const char*, MoonNotificationPriority"
+Function,+,moon_companion_subscribe_position,void,"MoonCompanion*, MoonPositionCallback, void*"
+Function,+,moon_companion_unsubscribe_position,void,"MoonCompanion*, MoonPositionCallback, void*"
+Function,+,moon_companion_yield,void,"MoonCompanion*, uint32_t"
 Function,+,moon_settings_save,void,
 Function,-,mrand48,long,
 Function,-,music_worker_alloc,MusicWorker*,

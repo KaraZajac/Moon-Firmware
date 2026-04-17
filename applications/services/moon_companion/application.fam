@@ -1,0 +1,18 @@
+App(
+    appid="moon_companion",
+    name="MoonCompanionSrv",
+    apptype=FlipperAppType.SERVICE,
+    entry_point="moon_companion_srv",
+    cdefines=["SRV_MOON_COMPANION"],
+    requires=[
+        "storage",
+        "bt",
+        "gui",
+        "notification",
+    ],
+    stack_size=2 * 1024,
+    # Start after bt (order 20) — we depend on the BT stack being
+    # initialised before we try to advertise/scan.
+    order=30,
+    sdk_headers=["moon_companion.h"],
+)

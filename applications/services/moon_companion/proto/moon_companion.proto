@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package moon.companion.v1;
+
+/*
+ * Moon Companion Protocol v1
+ *
+ * Wire format between a Moon-Firmware Flipper (central) and the Moon
+ * Companion Android app (peripheral). The Flipper initiates every RPC
+ * with a MoonRequest; the phone answers with a MoonResponse carrying
+ * the same request_id. MoonEvents are phone-originated pushes with no
+ * matching request — used for streaming subscriptions (GPS updates,
+ * phone status changes).
+ *
+ * All envelopes fit comfortably inside the default ATT MTU once the
+ * connection negotiates ≥ 247 bytes. Larger payloads (FAP / firmware
+ * binaries) travel on a side-channel L2CAP CoC — not in this schema.
+ */
+
+// ── Envelopes ──────────────────────────────────────────────────────────
+
+message MoonRequest {
+    uint32 request_id = 1;           // echoed in MoonResponse.request_id
+    bytes  auth_token = 2;           // 16 bytes from pairing (MoonPair)
+
+    oneof payload {
+        // Tier 1 — MVP
+        GetPositionRequest         get_position         = 10;
+        SubscribePositionRequest   subscribe_position   = 11;
+        UnsubscribePositionRequest unsubscribe_position = 12;
+        GetTimeRequest             get_time             = 20;
+        SendNotificationRequest    send_notification    = 30;
+
+        // Tier 2 — stubs for now, filled in later
+        ListAppUpdatesRequest      list_app_updates     = 100;
+        DownloadAppRequest         download_app         = 101;
+        CheckFirmwareUpdateRequest check_firmware       = 110;
+        HttpGetRequest             http_get             = 200;
+        HttpPostRequest            http_post            = 201;
+    }
+}
+
+message MoonResponse {
+    uint32      request_id = 1;
+    MoonStatus  status     = 2;
+
+    oneof payload {
+        PositionData    position     = 10;
+        TimeData        time         = 20;
+        NotificationAck notification = 30;
+        UpdateList      updates      = 100;
+        HttpResponse    http         = 200;
+        StatusAck       ack          = 255;
+    }
+}
+
+// Phone-initiated push. No request_id; phone emits these on its own
+// schedule (e.g. once per second for a position subscription).
+message MoonEvent {
+    oneof event {
+        PositionData position_update = 1;
+        PhoneStatus  phone_status    = 2;
+    }
+}
+
+// ── Status codes ───────────────────────────────────────────────────────
+
+enum MoonStatus {
+    MOON_OK                  = 0;
+    MOON_UNAUTHORIZED        = 1;   // auth_token missing or wrong
+    MOON_UNSUPPORTED_VERSION = 2;
+    MOON_UNSUPPORTED_REQUEST = 3;   // phone doesn't implement this yet
+    MOON_INTERNAL_ERROR      = 4;
+    MOON_NOT_AVAILABLE       = 5;   // e.g., GPS not fixed, no network
+    MOON_RATE_LIMITED        = 6;
+}
+
+// ── Position ───────────────────────────────────────────────────────────
+
+message GetPositionRequest {
+    uint32 max_age_ms = 1;   // return cached fix if younger than this; 0 = any age
+}
+
+message PositionData {
+    sfixed32 lat_e7        = 1;   // latitude  × 1e7
+    sfixed32 lon_e7        = 2;   // longitude × 1e7
+    sint32   alt_mm        = 3;   // altitude above WGS-84 ellipsoid, mm
+    uint32   accuracy_mm   = 4;   // 68 %-CEP horizontal accuracy
+    uint32   speed_mmps    = 5;   // speed over ground, mm/s
+    uint32   heading_cdeg  = 6;   // 0 – 35999 (0.01 degree)
+    uint64   timestamp_ms  = 7;   // Unix epoch ms when the fix was taken
+    FixQuality fix_quality = 8;
+    uint32   satellites    = 9;
+    // Identifier of the upstream source that produced this fix. The paired
+    // phone fills this with the first 8 bytes of its stable device ID so
+    // the Flipper service can distinguish multiple sources (phone vs. a
+    // future Meshtastic bridge vs. a dedicated GPS module) if we ever
+    // plumb more than one. Zero-filled when the source doesn't have a
+    // stable identity or doesn't care.
+    bytes    source_id     = 10;  // 8 bytes, max
+}
+
+enum FixQuality {
+    FIX_NONE = 0;
+    FIX_2D   = 1;
+    FIX_3D   = 2;
+}
+
+message SubscribePositionRequest {
+    uint32 interval_ms = 1;   // push interval; phone may clamp to min 500 ms
+}
+
+message UnsubscribePositionRequest {}
+
+// ── Time ───────────────────────────────────────────────────────────────
+
+message GetTimeRequest {}
+
+message TimeData {
+    uint64 unix_ms          = 1;
+    sint32 tz_offset_seconds = 2;  // e.g., -14400 for EDT
+    string tz_name          = 3;   // IANA name, e.g. "America/New_York"
+}
+
+// ── Notifications ──────────────────────────────────────────────────────
+
+message SendNotificationRequest {
+    string   title    = 1;
+    string   body     = 2;
+    Priority priority = 3;
+    string   tag      = 4;   // optional: phone dedupes by tag, replaces prior with same tag
+
+    enum Priority {
+        NORMAL = 0;
+        HIGH   = 1;
+        URGENT = 2;
+    }
+}
+
+message NotificationAck {
+    bool delivered = 1;
+}
+
+// ── Status ─────────────────────────────────────────────────────────────
+
+message StatusAck {}
+
+message PhoneStatus {
+    uint32 battery_pct = 1;
+    bool   charging    = 2;
+    bool   has_network = 3;
+}
+
+// ── Tier 2: stubs (filled in later) ────────────────────────────────────
+
+message ListAppUpdatesRequest {
+    repeated AppVersion installed = 1;
+}
+
+message AppVersion {
+    string appid   = 1;
+    string version = 2;
+}
+
+message UpdateList {
+    repeated AvailableUpdate updates = 1;
+}
+
+message AvailableUpdate {
+    string appid       = 1;
+    string new_version = 2;
+    string source_url  = 3;   // phone uses this to fetch via HTTP, then streams over CoC
+    uint32 size_bytes  = 4;
+}
+
+message DownloadAppRequest {
+    string appid     = 1;
+    string source_url = 2;   // from AvailableUpdate.source_url
+}
+
+message CheckFirmwareUpdateRequest {
+    string current_version = 1;
+}
+
+// ── Tier 2: HTTP proxy (stub) ──────────────────────────────────────────
+
+message HttpGetRequest {
+    string url = 1;
+    repeated HttpHeader headers = 2;
+}
+
+message HttpPostRequest {
+    string url = 1;
+    repeated HttpHeader headers = 2;
+    bytes  body = 3;
+}
+
+message HttpHeader {
+    string key   = 1;
+    string value = 2;
+}
+
+message HttpResponse {
+    uint32 status_code = 1;
+    repeated HttpHeader headers = 2;
+    bytes  body = 3;
+}
