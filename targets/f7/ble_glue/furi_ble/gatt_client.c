@@ -47,10 +47,23 @@ static uint8_t gatt_client_sentinel = 0;
 /* ── Per-connection lookup helpers ──────────────────────────────── */
 
 static GattClientConnection* gatt_find_connection(uint16_t connection_handle) {
+    /* Exact match first. */
     for(int i = 0; i < GATT_CLIENT_MAX_CONNECTIONS; i++) {
         if(gatt_connections[i].active &&
            gatt_connections[i].connection_handle == connection_handle) {
             return &gatt_connections[i];
+        }
+    }
+    /* Fall back to the default slot (handle=0) so single-connection apps
+     * can register one callback at init without waiting for the BLE
+     * connection handle to become known. Apps that need per-connection
+     * routing still call set_callback(handle, …) explicitly and that slot
+     * takes priority over the default. */
+    if(connection_handle != 0) {
+        for(int i = 0; i < GATT_CLIENT_MAX_CONNECTIONS; i++) {
+            if(gatt_connections[i].active && gatt_connections[i].connection_handle == 0) {
+                return &gatt_connections[i];
+            }
         }
     }
     return NULL;

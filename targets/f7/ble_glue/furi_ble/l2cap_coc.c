@@ -39,10 +39,22 @@ static uint8_t coc_sentinel = 0;
 /* ── Lookup helpers ────────────────────────────────────────────── */
 
 static L2capCocConnection* coc_find_connection(uint16_t connection_handle) {
+    /* Exact match first. */
     for(int i = 0; i < L2CAP_COC_MAX_CONNECTIONS; i++) {
         if(coc_connections[i].active &&
            coc_connections[i].connection_handle == connection_handle) {
             return &coc_connections[i];
+        }
+    }
+    /* Fall back to the default slot (handle=0) — lets peripheral apps
+     * register a single callback at alloc-time and still receive events
+     * for connections whose handle isn't known until CoC-Connected
+     * arrives. */
+    if(connection_handle != 0) {
+        for(int i = 0; i < L2CAP_COC_MAX_CONNECTIONS; i++) {
+            if(coc_connections[i].active && coc_connections[i].connection_handle == 0) {
+                return &coc_connections[i];
+            }
         }
     }
     return NULL;

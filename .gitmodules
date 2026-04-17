@@ -1,7 +1,7 @@
 [submodule "applications/external"]
 	path = applications/external
 	url = https://github.com/KaraZajac/Moon-Apps.git
-	branch = subghz-private-libs
+	branch = dev
 [submodule "assets/protobuf"]
 	path = assets/protobuf
 	url = https://github.com/Next-Flip/flipperzero-protobuf.git
