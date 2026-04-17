@@ -242,14 +242,14 @@ bool ble_svc_serial_update_tx(BleServiceSerial* serial_svc, uint8_t* data, uint1
         return false;
     }
 
-    /* Target peripheral connection specifically — in dual-connection mode,
-     * conn_handle=0 would notify ALL connections including central-role ones
-     * that shouldn't receive serial service notifications. */
-    uint16_t conn_handle = gap_get_connection_handle_by_role(false);
-    if(conn_handle == 0) {
-        FURI_LOG_W(TAG, "No peripheral connection for TX notification");
-        return false;
-    }
+    /* conn_handle=0 = broadcast to all subscribed clients. The stack
+     * only delivers indications to clients that wrote the TX CCCD, so
+     * targeting 0 is safe even in dual-connection mode — a central
+     * peer won't spuriously receive serial TX unless it subscribed.
+     * Using a role-filtered lookup here previously dropped the first
+     * version-info indication whenever connection-complete event
+     * processing raced with the RPC stack's initial TX. */
+    const uint16_t conn_handle = 0;
 
     for(uint16_t remained = data_len; remained > 0;) {
         uint8_t value_len = MIN(BLE_SVC_SERIAL_CHAR_VALUE_LEN_MAX, remained);
