@@ -1,16 +1,32 @@
 #pragma once
 
 #include "moon_companion.h"
+#include "moon_companion_ble.h"
 #include <furi.h>
 
 #define MOON_COMPANION_MAX_SUBSCRIBERS 4
 #define MOON_COMPANION_AUTH_TOKEN_SIZE 16
+#define MOON_COMPANION_MAX_INFLIGHT    4
 #define MOON_COMPANION_SETTINGS_PATH   "/int/.moon_companion.settings"
+#define MOON_COMPANION_RPC_TIMEOUT_MS  3000
 
 typedef struct {
     MoonPositionCallback cb;
     void* ctx;
 } MoonPositionSubscriber;
+
+/* An outstanding RPC — keyed by request_id. Waiters block on
+ * `done` (FuriEventFlag) until the matching response notification
+ * lands, times out, or the connection drops. `response_buf` is
+ * the decoded MoonResponse payload; only the `status` and the
+ * relevant oneof branch are valid. */
+typedef struct {
+    uint32_t request_id;
+    FuriEventFlag* done;
+    void* response_buf; /* heap-allocated moon_companion_v1_MoonResponse* */
+    bool filled;
+    bool timed_out;
+} MoonRpcInFlight;
 
 typedef struct {
     bool    paired;
@@ -27,6 +43,9 @@ struct MoonCompanion {
     FuriMessageQueue* queue;
     FuriMutex* mutex;
 
+    /* BLE transport */
+    MoonBle* ble;
+
     /* Connection / service state */
     MoonConnectionState state;
 
@@ -36,6 +55,10 @@ struct MoonCompanion {
     /* Pairing-in-progress */
     bool pairing_active;
     char pairing_pin[7]; /* 6 digits + NUL */
+
+    /* RPC bookkeeping */
+    uint32_t next_request_id;
+    MoonRpcInFlight inflight[MOON_COMPANION_MAX_INFLIGHT];
 
     /* Last-known values (mutex-protected) */
     MoonPosition last_position;

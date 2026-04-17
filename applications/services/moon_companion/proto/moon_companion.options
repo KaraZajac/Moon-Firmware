@@ -1,0 +1,45 @@
+# nanopb size constraints for moon_companion.proto
+#
+# Everything must fit in a single GATT notification (up to 244 bytes on a
+# 247-byte MTU link). Tier 2 (updates + HTTP proxy) will need larger
+# payloads — those travel on an L2CAP CoC side-channel, not this proto.
+
+# ── Envelopes ──────────────────────────────────────────────────────────
+*MoonRequest.auth_token       max_size:16
+*PairRequest.flipper_name     max_size:32
+*PairResponse.auth_token      max_size:16
+*PairResponse.phone_name      max_size:32
+
+# ── Position ──────────────────────────────────────────────────────────
+*PositionData.source_id       max_size:8
+
+# ── Time ──────────────────────────────────────────────────────────────
+*TimeData.tz_name             max_size:48
+
+# ── Notifications ─────────────────────────────────────────────────────
+*SendNotificationRequest.title  max_size:64
+*SendNotificationRequest.body   max_size:160
+*SendNotificationRequest.tag    max_size:32
+
+# ── Tier 2 (Phase 2+) ─────────────────────────────────────────────────
+# Capped aggressively — these are stubs for now. Will revisit when we
+# design the L2CAP CoC side-channel for large payloads.
+*AppVersion.appid             max_size:32
+*AppVersion.version           max_size:16
+*AvailableUpdate.appid        max_size:32
+*AvailableUpdate.new_version  max_size:16
+*AvailableUpdate.source_url   max_size:128
+*ListAppUpdatesRequest.installed  max_count:8
+*UpdateList.updates               max_count:8
+*DownloadAppRequest.appid         max_size:32
+*DownloadAppRequest.source_url    max_size:128
+*CheckFirmwareUpdateRequest.current_version  max_size:16
+*HttpHeader.key               max_size:32
+*HttpHeader.value             max_size:128
+*HttpGetRequest.url           max_size:128
+*HttpGetRequest.headers       max_count:4
+*HttpPostRequest.url          max_size:128
+*HttpPostRequest.headers      max_count:4
+*HttpPostRequest.body         max_size:128
+*HttpResponse.headers         max_count:4
+*HttpResponse.body            max_size:128

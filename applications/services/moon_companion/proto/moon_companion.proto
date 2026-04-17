@@ -24,6 +24,9 @@ message MoonRequest {
     bytes  auth_token = 2;           // 16 bytes from pairing (MoonPair)
 
     oneof payload {
+        // Pairing (Phase 1)
+        PairRequest                pair                 = 3;
+
         // Tier 1 — MVP
         GetPositionRequest         get_position         = 10;
         SubscribePositionRequest   subscribe_position   = 11;
@@ -45,6 +48,7 @@ message MoonResponse {
     MoonStatus  status     = 2;
 
     oneof payload {
+        PairResponse    pair         = 3;
         PositionData    position     = 10;
         TimeData        time         = 20;
         NotificationAck notification = 30;
@@ -61,6 +65,31 @@ message MoonEvent {
         PositionData position_update = 1;
         PhoneStatus  phone_status    = 2;
     }
+}
+
+// Top-level message carried over the RPC_RX characteristic. Every
+// phone→Flipper notification is a MoonPhoneMessage so the Flipper-side
+// decoder only needs one entry point.
+message MoonPhoneMessage {
+    oneof kind {
+        MoonResponse response = 1;
+        MoonEvent    event    = 2;
+    }
+}
+
+// ── Pairing (Phase 1a — trivial, no crypto) ────────────────────────────
+//
+// Phase 1a: phone accepts any Flipper that sends a PairRequest while the
+// user is in its pair-mode window. Phone generates and returns a random
+// 16-byte auth_token. Phase 1b will replace this with ECDH + 6-digit code.
+
+message PairRequest {
+    string flipper_name = 1;   // purely for the phone's UI
+}
+
+message PairResponse {
+    bytes  auth_token = 1;     // 16 bytes; caller persists and sends in every MoonRequest
+    string phone_name = 2;     // purely for the Flipper's UI
 }
 
 // ── Status codes ───────────────────────────────────────────────────────
