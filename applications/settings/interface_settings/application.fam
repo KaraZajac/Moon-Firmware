@@ -1,0 +1,11 @@
+App(
+    appid="interface_settings",
+    name="Interface",
+    apptype=FlipperAppType.SETTINGS,
+    entry_point="interface_settings_app",
+    requires=["gui"],
+    flags=["InsomniaSafe"],
+    stack_size=1 * 1024,
+    order=45,
+    fap_category="assets",
+)

@@ -486,11 +486,21 @@ void moon_app_free(MoonApp* app) {
 extern int32_t moon_app(void* p) {
     MoonApp* app = moon_app_alloc();
 
-    // Check for command line arguments to navigate to specific scenes
+    /* Command-line arg → starting scene. "MiscScreen" is the original
+     * desktop-keybind entry point; "Interface" / "Protocols" / "Misc" are
+     * used by the interface_settings / protocols_settings / misc_settings
+     * shim apps so those three categories look like first-class entries
+     * under the system Settings menu. */
     uint32_t first_scene = MoonAppSceneStart;
     if(p && strlen(p)) {
         if(!strcmp(p, "MiscScreen")) {
             first_scene = MoonAppSceneMiscScreen;
+        } else if(!strcmp(p, "Interface")) {
+            first_scene = MoonAppSceneInterface;
+        } else if(!strcmp(p, "Protocols")) {
+            first_scene = MoonAppSceneProtocols;
+        } else if(!strcmp(p, "Misc")) {
+            first_scene = MoonAppSceneMisc;
         }
     }
 

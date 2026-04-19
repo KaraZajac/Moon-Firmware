@@ -1,11 +1,13 @@
 App(
     appid="moon_app",
     name="Moon",
-    apptype=FlipperAppType.MENUEXTERNAL,
+    # No longer a main-menu tile — the Interface/Protocols/Misc
+    # categories live under Settings now (interface_settings,
+    # protocols_settings, misc_settings apps). Keeping the app built-in
+    # as APP so the Settings-side shims can loader_start("Moon", arg).
+    apptype=FlipperAppType.APP,
     entry_point="moon_app",
     stack_size=2 * 1024,
     flags=["InsomniaSafe"],
-    icon="A_Moon_14",
-    order=90,
     fap_category="assets",
 )
