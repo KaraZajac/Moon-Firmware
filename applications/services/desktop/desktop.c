@@ -5,6 +5,7 @@
 #include <gui/gui_i.h>
 
 #include <locale/locale.h>
+#include <rpc/rpc.h>
 #include <storage/storage.h>
 #include <moon/settings.h>
 
