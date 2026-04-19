@@ -769,9 +769,15 @@ int32_t moon_companion_srv(void* p) {
     moon_ble_set_state_callback(moon->ble, moon_companion_on_ble_state, moon);
     moon_ble_set_rx_callback(moon->ble, moon_companion_on_rpc_rx, moon);
 
-    /* Bring up the L2CAP CoC event pump so bulk transfers work once a
-     * link is established. Idempotent; safe to call unconditionally. */
-    ble_l2cap_coc_init();
+    /* Note on boot ordering: do NOT call ble_l2cap_coc_init() (or any
+     * other ACI call) here. This thread runs concurrently with bt_srv,
+     * and gap_init() — which also calls ble_event_dispatcher_init() —
+     * hasn't finished yet. Touching the event dispatcher at this point
+     * dereferences NULL and boot-loops the whole device. We lazily
+     * init the CoC layer inside moon_ble_start_scan() (and lazily
+     * init the GATT client there too), which only runs once the user
+     * or auto-reconnect triggers a connection attempt — by which time
+     * BT is fully up. */
 
     furi_record_create(RECORD_MOON_COMPANION, moon);
 
