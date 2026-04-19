@@ -11,8 +11,6 @@
 #include <gui/view.h>
 
 #include <dialogs/dialogs.h>
-#include <power/power_service/power.h>
-#include <rpc/rpc.h>
 #include <notification/notification.h>
 #include <storage/storage.h>
 
@@ -23,8 +21,6 @@
 
 typedef enum {
     BtMessageTypeUpdateStatus,
-    BtMessageTypeUpdateBatteryLevel,
-    BtMessageTypeUpdatePowerState,
     BtMessageTypePinCodeShow,
     BtMessageTypeKeysStorageUpdated,
     BtMessageTypeSetProfile,
@@ -42,8 +38,6 @@ typedef struct {
 
 typedef union {
     uint32_t pin_code;
-    uint8_t battery_level;
-    bool power_state_charging;
     struct {
         const FuriHalBleProfileTemplate* template;
         FuriHalBleProfileParams params;
@@ -79,25 +73,9 @@ struct Bt {
     uint32_t pin_code;
     DialogsApp* dialogs;
     DialogMessage* dialog_message;
-    Power* power;
-    Rpc* rpc;
-    RpcSession* rpc_session;
-    FuriEventFlag* rpc_event;
     FuriEventFlag* api_event;
     BtStatusChangedCallback status_changed_cb;
     void* status_changed_ctx;
 
     bool suppress_pin_screen;
 };
-
-/** Open a new RPC connection
- *
- * @param bt                    Bt instance
- */
-void bt_open_rpc_connection(Bt* bt);
-
-/** Close the active RPC connection
- *
- * @param bt                    Bt instance
- */
-void bt_close_rpc_connection(Bt* bt);

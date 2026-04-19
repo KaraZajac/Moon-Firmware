@@ -42,15 +42,6 @@ static void
 }
 
 static void
-    moon_app_scene_interface_lockscreen_allow_locked_rpc_ble_changed(VariableItem* item) {
-    MoonApp* app = variable_item_get_context(item);
-    bool value = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, value ? "ON" : "OFF");
-    moon_settings.allow_locked_rpc_ble = value;
-    app->save_settings = true;
-}
-
-static void
     moon_app_scene_interface_lockscreen_lockscreen_poweroff_changed(VariableItem* item) {
     MoonApp* app = variable_item_get_context(item);
     bool value = variable_item_get_current_value_index(item);
@@ -151,16 +142,6 @@ void moon_app_scene_interface_lockscreen_on_enter(void* context) {
     variable_item_set_current_value_index(item, moon_settings.allow_locked_rpc_usb);
     variable_item_set_current_value_text(
         item, moon_settings.allow_locked_rpc_usb ? "ON" : "OFF");
-
-    item = variable_item_list_add(
-        var_item_list,
-        "Allow BLE RPC While Locked",
-        2,
-        moon_app_scene_interface_lockscreen_allow_locked_rpc_ble_changed,
-        app);
-    variable_item_set_current_value_index(item, moon_settings.allow_locked_rpc_ble);
-    variable_item_set_current_value_text(
-        item, moon_settings.allow_locked_rpc_ble ? "ON" : "OFF");
 
     item = variable_item_list_add(
         var_item_list,

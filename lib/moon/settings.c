@@ -15,7 +15,6 @@ MoonSettings moon_settings = {
     .lock_on_boot = true, // ON
     .bad_pins_format = false, // OFF
     .allow_locked_rpc_usb = false, // OFF
-    .allow_locked_rpc_ble = false, // OFF
     .lockscreen_poweroff = true, // ON
     .lockscreen_time = true, // ON
     .lockscreen_seconds = false, // OFF
@@ -90,7 +89,6 @@ static const struct {
     {setting_enum(menu_style, MenuStyleCount)},
     {setting_bool(bad_pins_format)},
     {setting_bool(allow_locked_rpc_usb)},
-    {setting_bool(allow_locked_rpc_ble)},
     {setting_bool(lock_on_boot)},
     {setting_bool(lockscreen_poweroff)},
     {setting_bool(lockscreen_time)},

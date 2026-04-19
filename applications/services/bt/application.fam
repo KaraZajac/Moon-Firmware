@@ -5,7 +5,6 @@ App(
     entry_point="bt_srv",
     cdefines=["SRV_BT"],
     requires=[
-        "cli",
         "dialogs",
     ],
     provides=[
@@ -14,13 +13,4 @@ App(
     stack_size=1 * 1024,
     order=20,
     sdk_headers=["bt_service/bt.h", "bt_service/bt_keys_storage.h"],
-)
-
-App(
-    appid="cli_bt",
-    targets=["f7"],
-    apptype=FlipperAppType.PLUGIN,
-    entry_point="cli_bt_ep",
-    requires=["cli"],
-    sources=["bt_cli.c", "bt_service/bt_settings_api.c"],
 )

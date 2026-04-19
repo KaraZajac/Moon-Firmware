@@ -114,15 +114,6 @@ FURI_WARN_UNUSED FuriHalBleProfileBase* furi_hal_bt_change_app(
     GapEventCallback event_cb,
     void* context);
 
-/** Update battery level
- *
- * @param battery_level battery level
- */
-void furi_hal_bt_update_battery_level(uint8_t battery_level);
-
-/** Update battery power state */
-void furi_hal_bt_update_power_state(bool charging);
-
 /** Checks if BLE state is active
  *
  * @return          true if device is connected or advertising, false otherwise

@@ -388,7 +388,8 @@ static void
 RpcSession* rpc_session_open(Rpc* rpc, RpcOwner owner) {
     if(furi_hal_rtc_is_flag_set(FuriHalRtcFlagLock)) {
         if(owner == RpcOwnerUsb && !moon_settings.allow_locked_rpc_usb) return NULL;
-        if(owner == RpcOwnerBle && !moon_settings.allow_locked_rpc_ble) return NULL;
+        /* RpcOwnerBle no longer reachable — BLE-RPC transport was removed with
+         * Flipper-Mobile-App decoupling. Enum kept for API compatibility. */
     }
 
     furi_check(rpc);

@@ -3,24 +3,12 @@
 
 #include <core/check.h>
 #include <furi_hal_bt.h>
-#include <services/battery_service.h>
 #include <notification/notification_messages.h>
 #include <gui/elements.h>
 #include <assets_icons.h>
 #include <profiles/serial_profile.h>
 
 #define TAG "BtSrv"
-
-#define BT_RPC_EVENT_BUFF_SENT    (1UL << 0)
-#define BT_RPC_EVENT_DISCONNECTED (1UL << 1)
-#define BT_RPC_EVENT_ALL          (BT_RPC_EVENT_BUFF_SENT | BT_RPC_EVENT_DISCONNECTED)
-
-/* Upper bound on how long we'll wait for a single BLE indication to be ACKed
- * by the peer before abandoning the RPC message. With a healthy link the ACK
- * arrives within one connection interval (~7.5–45 ms); 2 s is a generous
- * ceiling that guarantees the RPC thread can never deadlock on a wedged
- * stack. On timeout we abort the in-flight message and let the peer retry. */
-#define BT_RPC_TX_ACK_TIMEOUT_MS 2000
 
 #define ICON_SPACER 2
 
@@ -83,7 +71,7 @@ static void bt_storage_callback(const void* message, void* context) {
     }
 }
 
-static ViewPort* bt_pin_code_view_port_alloc(Bt* bt) {
+static ViewPort* bt_pin_code_view_port_alloc_helper(Bt* bt) {
     ViewPort* view_port = view_port_alloc();
     view_port_draw_callback_set(view_port, bt_pin_code_view_port_draw_callback, bt);
     view_port_input_callback_set(view_port, bt_pin_code_view_port_input_callback, bt);
@@ -94,8 +82,7 @@ static ViewPort* bt_pin_code_view_port_alloc(Bt* bt) {
 static void bt_pin_code_show(Bt* bt, uint32_t pin_code) {
     bt->pin_code = pin_code;
     if(!bt->pin_code_view_port) {
-        // Pin code view port
-        bt->pin_code_view_port = bt_pin_code_view_port_alloc(bt);
+        bt->pin_code_view_port = bt_pin_code_view_port_alloc_helper(bt);
         gui_add_view_port(bt->gui, bt->pin_code_view_port, GuiLayerFullscreen);
     }
     notification_message(bt->notification, &sequence_display_backlight_on);
@@ -132,151 +119,23 @@ static bool bt_pin_code_verify_event_handler(Bt* bt, uint32_t pin) {
     return button == DialogMessageButtonCenter;
 }
 
-static void bt_battery_level_changed_callback(const void* _event, void* context) {
-    furi_assert(_event);
-    furi_assert(context);
-
-    Bt* bt = context;
-    BtMessage message = {};
-    const PowerEvent* event = _event;
-    bool is_charging = false;
-    switch(event->type) {
-    case PowerEventTypeBatteryLevelChanged:
-        message.type = BtMessageTypeUpdateBatteryLevel;
-        message.data.battery_level = event->data.battery_level;
-        furi_check(
-            furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
-        break;
-    case PowerEventTypeStartCharging:
-        is_charging = true;
-        /* fallthrough */
-    case PowerEventTypeFullyCharged:
-    case PowerEventTypeStopCharging:
-        message.type = BtMessageTypeUpdatePowerState;
-        message.data.power_state_charging = is_charging;
-        furi_check(
-            furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
-        break;
-    }
-}
-
 Bt* bt_alloc(void) {
     Bt* bt = malloc(sizeof(Bt));
-    // Init default maximum packet size
     bt->max_packet_size = BLE_PROFILE_SERIAL_PACKET_SIZE_MAX;
     bt->current_profile = NULL;
-    // Keys storage
     bt->keys_storage = bt_keys_storage_alloc(BT_KEYS_STORAGE_PATH);
-    // Alloc queue
     bt->message_queue = furi_message_queue_alloc(8, sizeof(BtMessage));
 
-    // Setup statusbar view port
     bt->statusbar_view_port = bt_statusbar_view_port_alloc(bt);
-    // Notification
     bt->notification = furi_record_open(RECORD_NOTIFICATION);
-    // Gui
     bt->gui = furi_record_open(RECORD_GUI);
     gui_add_view_port(bt->gui, bt->statusbar_view_port, GuiLayerStatusBarLeft);
 
-    // Dialogs
     bt->dialogs = furi_record_open(RECORD_DIALOGS);
 
-    // Power
-    bt->power = furi_record_open(RECORD_POWER);
-    FuriPubSub* power_pubsub = power_get_pubsub(bt->power);
-    furi_pubsub_subscribe(power_pubsub, bt_battery_level_changed_callback, bt);
-
-    // RPC
-    bt->rpc = furi_record_open(RECORD_RPC);
-    bt->rpc_event = furi_event_flag_alloc();
-
-    // API evnent
     bt->api_event = furi_event_flag_alloc();
 
     return bt;
-}
-
-// Called from GAP thread from Serial service
-static uint16_t bt_serial_event_callback(SerialServiceEvent event, void* context) {
-    furi_assert(context);
-    Bt* bt = context;
-    uint16_t ret = 0;
-
-    if(event.event == SerialServiceEventTypeDataReceived) {
-        size_t bytes_processed =
-            rpc_session_feed(bt->rpc_session, event.data.buffer, event.data.size, 1000);
-        if(bytes_processed != event.data.size) {
-            FURI_LOG_E(
-                TAG, "Only %zu of %u bytes processed by RPC", bytes_processed, event.data.size);
-        }
-        ret = rpc_session_get_available_size(bt->rpc_session);
-    } else if(event.event == SerialServiceEventTypeDataSent) {
-        furi_event_flag_set(bt->rpc_event, BT_RPC_EVENT_BUFF_SENT);
-    } else if(event.event == SerialServiceEventTypesBleResetRequest) {
-        FURI_LOG_I(TAG, "BLE restart request received");
-        BtMessage message = {
-            .type = BtMessageTypeSetProfile,
-            .data.profile.params = NULL,
-            .data.profile.template = ble_profile_serial,
-        };
-        furi_check(
-            furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
-    }
-    return ret;
-}
-
-// Called from RPC thread
-static void bt_rpc_send_bytes_callback(void* context, uint8_t* bytes, size_t bytes_len) {
-    furi_assert(context);
-    Bt* bt = context;
-
-    if(furi_event_flag_get(bt->rpc_event) & BT_RPC_EVENT_DISCONNECTED) {
-        // Early stop from sending if we're already disconnected
-        return;
-    }
-    furi_event_flag_clear(bt->rpc_event, BT_RPC_EVENT_ALL & (~BT_RPC_EVENT_DISCONNECTED));
-    size_t bytes_sent = 0;
-    while(bytes_sent < bytes_len) {
-        size_t bytes_remain = bytes_len - bytes_sent;
-        size_t chunk =
-            bytes_remain > bt->max_packet_size ? bt->max_packet_size : bytes_remain;
-
-        /* Abort the whole message on a TX submission failure. Continuing would
-         * leave the RPC thread waiting FuriWaitForever for an ACK that will
-         * never arrive (the indication was never queued on the stack). */
-        if(!ble_profile_serial_tx(bt->current_profile, &bytes[bytes_sent], chunk)) {
-            FURI_LOG_E(TAG, "BLE TX submit failed, aborting RPC message");
-            break;
-        }
-        bytes_sent += chunk;
-
-        // We want BT_RPC_EVENT_DISCONNECTED to stick, so don't clear
-        uint32_t event_flag = furi_event_flag_wait(
-            bt->rpc_event,
-            BT_RPC_EVENT_ALL,
-            FuriFlagWaitAny | FuriFlagNoClear,
-            BT_RPC_TX_ACK_TIMEOUT_MS);
-        if(event_flag == (uint32_t)FuriFlagErrorTimeout) {
-            /* Stack wedged — peer never ACKed. Abort rather than deadlock;
-             * the connection will typically be torn down by supervision
-             * timeout on the peer side, or the peer will retry. */
-            FURI_LOG_E(TAG, "BLE TX ACK timeout, aborting RPC message");
-            break;
-        }
-        if(event_flag & BT_RPC_EVENT_DISCONNECTED) {
-            break;
-        } else {
-            // If we didn't get BT_RPC_EVENT_DISCONNECTED, then clear everything else
-            furi_event_flag_clear(bt->rpc_event, BT_RPC_EVENT_ALL & (~BT_RPC_EVENT_DISCONNECTED));
-        }
-    }
-}
-
-static void bt_serial_buffer_is_empty_callback(void* context) {
-    furi_assert(context);
-    Bt* bt = context;
-    furi_check(furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial));
-    ble_profile_serial_notify_buffer_is_empty(bt->current_profile);
 }
 
 // Called from GAP thread
@@ -285,58 +144,29 @@ static bool bt_on_gap_event_callback(GapEvent event, void* context) {
     Bt* bt = context;
     bool ret = false;
     bool do_update_status = false;
-    bool current_profile_is_serial =
-        furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial);
 
     if(event.type == GapEventTypeConnected) {
-        /* Only peripheral connections trigger RPC/status — central connections
-         * are managed by the app that initiated them, not the BT service.
-         * Note: gap.c already filters this (only fires Connected for peripheral
-         * pairing complete), but be explicit here for safety. */
+        /* Only peripheral connections drive the "connected" status icon —
+         * central-role links belong to whichever app initiated them (e.g.
+         * Moon Companion) and don't represent a phone pairing the radio. */
         if(!event.is_central) {
             bt->status = BtStatusConnected;
             do_update_status = true;
-            bt_open_rpc_connection(bt);
-            // Update battery level
-            PowerInfo info;
-            power_get_info(bt->power, &info);
-            BtMessage message = {.type = BtMessageTypeUpdateStatus};
-            message.type = BtMessageTypeUpdateBatteryLevel;
-            message.data.battery_level = info.charge;
-            furi_check(
-                furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) ==
-                FuriStatusOk);
         }
         ret = true;
     } else if(event.type == GapEventTypeDisconnected) {
-        /* Only close RPC when the PERIPHERAL connection drops.
-         * A central-role disconnect (e.g. Meshtastic node going away)
-         * must NOT kill the phone's RPC session. */
-        if(!event.is_central && current_profile_is_serial && bt->rpc_session) {
-            FURI_LOG_I(TAG, "Close RPC connection (peripheral disconnected)");
-            ble_profile_serial_set_rpc_active(
-                bt->current_profile, FuriHalBtSerialRpcStatusNotActive);
-            furi_event_flag_set(bt->rpc_event, BT_RPC_EVENT_DISCONNECTED);
-            rpc_session_close(bt->rpc_session);
-            ble_profile_serial_set_event_callback(bt->current_profile, 0, NULL, NULL);
-            bt->rpc_session = NULL;
-        }
         if(!event.is_central) {
             bt->status = BtStatusAdvertising;
             do_update_status = true;
         }
         ret = true;
     } else if(event.type == GapEventTypeStartAdvertising) {
-        /* Don't overwrite Connected status — we can be advertising while
-         * connected (dual-role: peripheral connected + advertising for
-         * more connections or central discovery). */
         if(bt->status != BtStatusConnected) {
             bt->status = BtStatusAdvertising;
             do_update_status = true;
         }
         ret = true;
     } else if(event.type == GapEventTypeStopAdvertising) {
-        /* Only go to Off if not connected — otherwise stay Connected */
         if(bt->status != BtStatusConnected) {
             bt->status = BtStatusOff;
             do_update_status = true;
@@ -410,47 +240,9 @@ static void bt_show_warning(Bt* bt, const char* text) {
     dialog_message_show(bt->dialogs, bt->dialog_message);
 }
 
-void bt_open_rpc_connection(Bt* bt) {
-    if(!bt->rpc_session && bt->status == BtStatusConnected) {
-        // Clear BT_RPC_EVENT_DISCONNECTED because it might be set from previous session
-        furi_event_flag_clear(bt->rpc_event, BT_RPC_EVENT_DISCONNECTED);
-        if(furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial)) {
-            // Open RPC session
-            bt->rpc_session = rpc_session_open(bt->rpc, RpcOwnerBle);
-            if(bt->rpc_session) {
-                FURI_LOG_I(TAG, "Open RPC connection");
-                rpc_session_set_send_bytes_callback(bt->rpc_session, bt_rpc_send_bytes_callback);
-                rpc_session_set_buffer_is_empty_callback(
-                    bt->rpc_session, bt_serial_buffer_is_empty_callback);
-                rpc_session_set_context(bt->rpc_session, bt);
-                ble_profile_serial_set_event_callback(
-                    bt->current_profile, RPC_BUFFER_SIZE, bt_serial_event_callback, bt);
-                ble_profile_serial_set_rpc_active(
-                    bt->current_profile, FuriHalBtSerialRpcStatusActive);
-            } else {
-                FURI_LOG_W(TAG, "RPC is busy, failed to open new session");
-            }
-        }
-    }
-}
-
-void bt_close_rpc_connection(Bt* bt) {
-    if(furi_hal_bt_check_profile_type(bt->current_profile, ble_profile_serial) &&
-       bt->rpc_session) {
-        FURI_LOG_I(TAG, "Close RPC connection");
-        furi_event_flag_set(bt->rpc_event, BT_RPC_EVENT_DISCONNECTED);
-        rpc_session_close(bt->rpc_session);
-        ble_profile_serial_set_event_callback(bt->current_profile, 0, NULL, NULL);
-        bt->rpc_session = NULL;
-    }
-}
-
 static void bt_change_profile(Bt* bt, BtMessage* message) {
     if(furi_hal_bt_is_gatt_gap_supported()) {
         bt_settings_load(&bt->bt_settings);
-
-        bt_close_rpc_connection(bt);
-
         bt_keys_storage_load(bt->keys_storage);
 
         bt->current_profile = furi_hal_bt_change_app(
@@ -487,7 +279,7 @@ static void bt_change_profile(Bt* bt, BtMessage* message) {
 }
 
 static void bt_close_connection(Bt* bt) {
-    bt_close_rpc_connection(bt);
+    UNUSED(bt);
     furi_hal_bt_stop_advertising();
 }
 
@@ -507,10 +299,7 @@ static void bt_load_keys(Bt* bt) {
 
     } else if(bt_keys_storage_is_changed(bt->keys_storage)) {
         FURI_LOG_I(TAG, "Loading new keys");
-
-        bt_close_rpc_connection(bt);
         bt_keys_storage_load(bt->keys_storage);
-
         bt->current_profile = NULL;
     } else {
         FURI_LOG_I(TAG, "Keys unchanged");
@@ -560,8 +349,6 @@ static void bt_init_keys_settings(Bt* bt) {
 
     if(storage_sd_status(storage) != FSE_OK) {
         FURI_LOG_D(TAG, "SD Card not ready, skipping settings");
-
-        // Just start the BLE serial application without loading the keys or settings
         bt_start_application(bt);
         return;
     }
@@ -604,19 +391,12 @@ int32_t bt_srv(void* p) {
             (void*)message.lock,
             (void*)message.result);
         if(message.type == BtMessageTypeUpdateStatus) {
-            // Update view ports
             bt_statusbar_update(bt);
             bt_pin_code_hide(bt);
             if(bt->status_changed_cb) {
                 bt->status_changed_cb(bt->status, bt->status_changed_ctx);
             }
-        } else if(message.type == BtMessageTypeUpdateBatteryLevel) {
-            // Update battery level
-            furi_hal_bt_update_battery_level(message.data.battery_level);
-        } else if(message.type == BtMessageTypeUpdatePowerState) {
-            furi_hal_bt_update_power_state(message.data.power_state_charging);
         } else if(message.type == BtMessageTypePinCodeShow) {
-            // Display PIN code
             bt_pin_code_show(bt, message.data.pin_code);
         } else if(message.type == BtMessageTypeKeysStorageUpdated) {
             bt_keys_storage_update(

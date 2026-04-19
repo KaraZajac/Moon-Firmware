@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.5,,
+Version,+,87.6,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -187,8 +187,6 @@ Header,+,targets/f7/ble_glue/furi_ble/gatt_client.h,,
 Header,+,targets/f7/ble_glue/furi_ble/l2cap_coc.h,,
 Header,+,targets/f7/ble_glue/furi_ble/profile_interface.h,,
 Header,+,targets/f7/ble_glue/profiles/serial_profile.h,,
-Header,+,targets/f7/ble_glue/services/battery_service.h,,
-Header,+,targets/f7/ble_glue/services/dev_info_service.h,,
 Header,+,targets/f7/ble_glue/services/serial_service.h,,
 Header,+,targets/f7/furi_hal/furi_hal_bus.h,,
 Header,+,targets/f7/furi_hal/furi_hal_clock.h,,
@@ -723,13 +721,6 @@ Function,+,ble_profile_serial_reset_stats,void,FuriHalBleProfileBase*
 Function,+,ble_profile_serial_set_event_callback,void,"FuriHalBleProfileBase*, uint16_t, FuriHalBtSerialCallback, void*"
 Function,+,ble_profile_serial_set_rpc_active,void,"FuriHalBleProfileBase*, _Bool"
 Function,+,ble_profile_serial_tx,_Bool,"FuriHalBleProfileBase*, uint8_t*, uint16_t"
-Function,+,ble_svc_battery_start,BleServiceBattery*,_Bool
-Function,+,ble_svc_battery_state_update,void,"uint8_t*, _Bool*"
-Function,+,ble_svc_battery_stop,void,BleServiceBattery*
-Function,+,ble_svc_battery_update_level,_Bool,"BleServiceBattery*, uint8_t"
-Function,+,ble_svc_battery_update_power_state,_Bool,"BleServiceBattery*, _Bool"
-Function,+,ble_svc_dev_info_start,BleServiceDevInfo*,
-Function,+,ble_svc_dev_info_stop,void,BleServiceDevInfo*
 Function,-,ble_svc_hid_start,BleServiceHid*,
 Function,-,ble_svc_hid_stop,void,BleServiceHid*
 Function,-,ble_svc_hid_update_info,_Bool,"BleServiceHid*, uint8_t*"
@@ -1293,8 +1284,6 @@ Function,+,furi_hal_bt_stop_rx,void,
 Function,+,furi_hal_bt_stop_scanning,void,
 Function,+,furi_hal_bt_stop_tone_tx,void,
 Function,+,furi_hal_bt_unlock_core2,void,
-Function,+,furi_hal_bt_update_battery_level,void,uint8_t
-Function,+,furi_hal_bt_update_power_state,void,_Bool
 Function,+,furi_hal_bus_deinit_early,void,
 Function,+,furi_hal_bus_disable,void,FuriHalBus
 Function,+,furi_hal_bus_enable,void,FuriHalBus

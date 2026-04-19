@@ -1,8 +1,6 @@
 #include "hid_profile.h"
 
 #include <furi_hal_usb_hid.h>
-#include <services/dev_info_service.h>
-#include <services/battery_service.h>
 #include <extra_services/hid_service.h>
 
 #include <furi.h>
@@ -131,8 +129,6 @@ typedef struct {
     FuriHalBtHidMouseReport* mouse_report;
     FuriHalBtHidConsumerReport* consumer_report;
 
-    BleServiceBattery* battery_svc;
-    BleServiceDevInfo* dev_info_svc;
     BleServiceHid* hid_svc;
 } BleProfileHid;
 _Static_assert(offsetof(BleProfileHid, base) == 0, "Wrong layout");
@@ -143,9 +139,6 @@ static FuriHalBleProfileBase* ble_profile_hid_start(FuriHalBleProfileParams prof
     BleProfileHid* profile = malloc(sizeof(BleProfileHid));
 
     profile->base.config = ble_profile_hid;
-
-    profile->battery_svc = ble_svc_battery_start(true);
-    profile->dev_info_svc = ble_svc_dev_info_start();
     profile->hid_svc = ble_svc_hid_start();
 
     // Configure HID Keyboard
@@ -176,8 +169,6 @@ static void ble_profile_hid_stop(FuriHalBleProfileBase* profile) {
     furi_check(profile->config == ble_profile_hid);
 
     BleProfileHid* hid_profile = (BleProfileHid*)profile;
-    ble_svc_battery_stop(hid_profile->battery_svc);
-    ble_svc_dev_info_stop(hid_profile->dev_info_svc);
     ble_svc_hid_stop(hid_profile->hid_svc);
 
     free(hid_profile->kb_report);
