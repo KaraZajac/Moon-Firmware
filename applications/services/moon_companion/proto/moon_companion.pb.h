@@ -26,6 +26,14 @@ typedef enum _moon_companion_v1_FixQuality {
     moon_companion_v1_FixQuality_FIX_3D = 2
 } moon_companion_v1_FixQuality;
 
+typedef enum _moon_companion_v1_BulkKind {
+    moon_companion_v1_BulkKind_BULK_UNSPECIFIED = 0,
+    moon_companion_v1_BulkKind_BULK_DOWNLOAD_FAP = 1, /* phone → Flipper, .fap binary */
+    moon_companion_v1_BulkKind_BULK_UPLOAD_FILE = 2, /* Flipper → phone, capture/dump */
+    moon_companion_v1_BulkKind_BULK_FIRMWARE_UPDATE = 3, /* phone → Flipper, .dfu image */
+    moon_companion_v1_BulkKind_BULK_ECHO_TEST = 4 /* phone → Flipper, bring-up fixture */
+} moon_companion_v1_BulkKind;
+
 typedef enum _moon_companion_v1_SendNotificationRequest_Priority {
     moon_companion_v1_SendNotificationRequest_Priority_NORMAL = 0,
     moon_companion_v1_SendNotificationRequest_Priority_HIGH = 1,
@@ -116,6 +124,23 @@ typedef struct _moon_companion_v1_MoonEvent {
     } event;
 } moon_companion_v1_MoonEvent;
 
+typedef struct _moon_companion_v1_OpenBulkChannelRequest {
+    moon_companion_v1_BulkKind kind;
+    char name[64]; /* intent-specific id: appid, filename, etc. */
+} moon_companion_v1_OpenBulkChannelRequest;
+
+typedef PB_BYTES_ARRAY_T(8) moon_companion_v1_OpenBulkChannelResponse_session_id_t;
+typedef struct _moon_companion_v1_OpenBulkChannelResponse {
+    uint32_t spsm; /* L2CAP PSM for the Flipper to dial (0x80–0xFF) */
+    uint32_t total_bytes; /* expected transfer size; 0 = unknown / streaming */
+    moon_companion_v1_OpenBulkChannelResponse_session_id_t session_id; /* 8 bytes; correlates CoC activity to this open */
+} moon_companion_v1_OpenBulkChannelResponse;
+
+typedef PB_BYTES_ARRAY_T(8) moon_companion_v1_CloseBulkChannelRequest_session_id_t;
+typedef struct _moon_companion_v1_CloseBulkChannelRequest {
+    moon_companion_v1_CloseBulkChannelRequest_session_id_t session_id;
+} moon_companion_v1_CloseBulkChannelRequest;
+
 typedef struct _moon_companion_v1_AppVersion {
     char appid[32];
     char version[16];
@@ -180,6 +205,12 @@ typedef struct _moon_companion_v1_MoonRequest {
         moon_companion_v1_UnsubscribePositionRequest unsubscribe_position;
         moon_companion_v1_GetTimeRequest get_time;
         moon_companion_v1_SendNotificationRequest send_notification;
+        /* Bulk transfer side-channel (Phase 3). The RPC channel itself
+     stays on GATT notifications; these verbs are just the handshake
+     that tells the Flipper which L2CAP CoC PSM the phone is
+     listening on for a specific transfer intent. */
+        moon_companion_v1_OpenBulkChannelRequest open_bulk_channel;
+        moon_companion_v1_CloseBulkChannelRequest close_bulk_channel;
         /* Tier 2 — stubs for now, filled in later */
         moon_companion_v1_ListAppUpdatesRequest list_app_updates;
         moon_companion_v1_DownloadAppRequest download_app;
@@ -206,6 +237,7 @@ typedef struct _moon_companion_v1_MoonResponse {
         moon_companion_v1_PositionData position;
         moon_companion_v1_TimeData time;
         moon_companion_v1_NotificationAck notification;
+        moon_companion_v1_OpenBulkChannelResponse open_bulk_channel;
         moon_companion_v1_UpdateList updates;
         moon_companion_v1_HttpResponse http;
         moon_companion_v1_StatusAck ack;
@@ -237,6 +269,10 @@ extern "C" {
 #define _moon_companion_v1_FixQuality_MAX moon_companion_v1_FixQuality_FIX_3D
 #define _moon_companion_v1_FixQuality_ARRAYSIZE ((moon_companion_v1_FixQuality)(moon_companion_v1_FixQuality_FIX_3D+1))
 
+#define _moon_companion_v1_BulkKind_MIN moon_companion_v1_BulkKind_BULK_UNSPECIFIED
+#define _moon_companion_v1_BulkKind_MAX moon_companion_v1_BulkKind_BULK_ECHO_TEST
+#define _moon_companion_v1_BulkKind_ARRAYSIZE ((moon_companion_v1_BulkKind)(moon_companion_v1_BulkKind_BULK_ECHO_TEST+1))
+
 #define _moon_companion_v1_SendNotificationRequest_Priority_MIN moon_companion_v1_SendNotificationRequest_Priority_NORMAL
 #define _moon_companion_v1_SendNotificationRequest_Priority_MAX moon_companion_v1_SendNotificationRequest_Priority_URGENT
 #define _moon_companion_v1_SendNotificationRequest_Priority_ARRAYSIZE ((moon_companion_v1_SendNotificationRequest_Priority)(moon_companion_v1_SendNotificationRequest_Priority_URGENT+1))
@@ -257,6 +293,10 @@ extern "C" {
 
 #define moon_companion_v1_SendNotificationRequest_priority_ENUMTYPE moon_companion_v1_SendNotificationRequest_Priority
 
+
+
+
+#define moon_companion_v1_OpenBulkChannelRequest_kind_ENUMTYPE moon_companion_v1_BulkKind
 
 
 
@@ -288,6 +328,9 @@ extern "C" {
 #define moon_companion_v1_NotificationAck_init_default {0}
 #define moon_companion_v1_StatusAck_init_default {0}
 #define moon_companion_v1_PhoneStatus_init_default {0, 0, 0}
+#define moon_companion_v1_OpenBulkChannelRequest_init_default {_moon_companion_v1_BulkKind_MIN, ""}
+#define moon_companion_v1_OpenBulkChannelResponse_init_default {0, 0, {0, {0}}}
+#define moon_companion_v1_CloseBulkChannelRequest_init_default {{0, {0}}}
 #define moon_companion_v1_ListAppUpdatesRequest_init_default {0, {moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default, moon_companion_v1_AppVersion_init_default}}
 #define moon_companion_v1_AppVersion_init_default {"", ""}
 #define moon_companion_v1_UpdateList_init_default {0, {moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default, moon_companion_v1_AvailableUpdate_init_default}}
@@ -314,6 +357,9 @@ extern "C" {
 #define moon_companion_v1_NotificationAck_init_zero {0}
 #define moon_companion_v1_StatusAck_init_zero    {0}
 #define moon_companion_v1_PhoneStatus_init_zero  {0, 0, 0}
+#define moon_companion_v1_OpenBulkChannelRequest_init_zero {_moon_companion_v1_BulkKind_MIN, ""}
+#define moon_companion_v1_OpenBulkChannelResponse_init_zero {0, 0, {0, {0}}}
+#define moon_companion_v1_CloseBulkChannelRequest_init_zero {{0, {0}}}
 #define moon_companion_v1_ListAppUpdatesRequest_init_zero {0, {moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero, moon_companion_v1_AppVersion_init_zero}}
 #define moon_companion_v1_AppVersion_init_zero   {"", ""}
 #define moon_companion_v1_UpdateList_init_zero   {0, {moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero, moon_companion_v1_AvailableUpdate_init_zero}}
@@ -354,6 +400,12 @@ extern "C" {
 #define moon_companion_v1_PhoneStatus_has_network_tag 3
 #define moon_companion_v1_MoonEvent_position_update_tag 1
 #define moon_companion_v1_MoonEvent_phone_status_tag 2
+#define moon_companion_v1_OpenBulkChannelRequest_kind_tag 1
+#define moon_companion_v1_OpenBulkChannelRequest_name_tag 2
+#define moon_companion_v1_OpenBulkChannelResponse_spsm_tag 1
+#define moon_companion_v1_OpenBulkChannelResponse_total_bytes_tag 2
+#define moon_companion_v1_OpenBulkChannelResponse_session_id_tag 3
+#define moon_companion_v1_CloseBulkChannelRequest_session_id_tag 1
 #define moon_companion_v1_AppVersion_appid_tag   1
 #define moon_companion_v1_AppVersion_version_tag 2
 #define moon_companion_v1_ListAppUpdatesRequest_installed_tag 1
@@ -380,6 +432,8 @@ extern "C" {
 #define moon_companion_v1_MoonRequest_unsubscribe_position_tag 12
 #define moon_companion_v1_MoonRequest_get_time_tag 20
 #define moon_companion_v1_MoonRequest_send_notification_tag 30
+#define moon_companion_v1_MoonRequest_open_bulk_channel_tag 40
+#define moon_companion_v1_MoonRequest_close_bulk_channel_tag 41
 #define moon_companion_v1_MoonRequest_list_app_updates_tag 100
 #define moon_companion_v1_MoonRequest_download_app_tag 101
 #define moon_companion_v1_MoonRequest_check_firmware_tag 110
@@ -394,6 +448,7 @@ extern "C" {
 #define moon_companion_v1_MoonResponse_position_tag 10
 #define moon_companion_v1_MoonResponse_time_tag  20
 #define moon_companion_v1_MoonResponse_notification_tag 30
+#define moon_companion_v1_MoonResponse_open_bulk_channel_tag 40
 #define moon_companion_v1_MoonResponse_updates_tag 100
 #define moon_companion_v1_MoonResponse_http_tag  200
 #define moon_companion_v1_MoonResponse_ack_tag   255
@@ -410,6 +465,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload,subscribe_position,payload.subscribe
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,unsubscribe_position,payload.unsubscribe_position),  12) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,get_time,payload.get_time),  20) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,send_notification,payload.send_notification),  30) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,open_bulk_channel,payload.open_bulk_channel),  40) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,close_bulk_channel,payload.close_bulk_channel),  41) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,list_app_updates,payload.list_app_updates), 100) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,download_app,payload.download_app), 101) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,check_firmware,payload.check_firmware), 110) \
@@ -423,6 +480,8 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload,http_post,payload.http_post), 201)
 #define moon_companion_v1_MoonRequest_payload_unsubscribe_position_MSGTYPE moon_companion_v1_UnsubscribePositionRequest
 #define moon_companion_v1_MoonRequest_payload_get_time_MSGTYPE moon_companion_v1_GetTimeRequest
 #define moon_companion_v1_MoonRequest_payload_send_notification_MSGTYPE moon_companion_v1_SendNotificationRequest
+#define moon_companion_v1_MoonRequest_payload_open_bulk_channel_MSGTYPE moon_companion_v1_OpenBulkChannelRequest
+#define moon_companion_v1_MoonRequest_payload_close_bulk_channel_MSGTYPE moon_companion_v1_CloseBulkChannelRequest
 #define moon_companion_v1_MoonRequest_payload_list_app_updates_MSGTYPE moon_companion_v1_ListAppUpdatesRequest
 #define moon_companion_v1_MoonRequest_payload_download_app_MSGTYPE moon_companion_v1_DownloadAppRequest
 #define moon_companion_v1_MoonRequest_payload_check_firmware_MSGTYPE moon_companion_v1_CheckFirmwareUpdateRequest
@@ -436,6 +495,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload,pair,payload.pair),   3) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,position,payload.position),  10) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,time,payload.time),  20) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,notification,payload.notification),  30) \
+X(a, STATIC,   ONEOF,    MESSAGE,  (payload,open_bulk_channel,payload.open_bulk_channel),  40) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,updates,payload.updates), 100) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,http,payload.http), 200) \
 X(a, STATIC,   ONEOF,    MESSAGE,  (payload,ack,payload.ack), 255)
@@ -445,6 +505,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload,ack,payload.ack), 255)
 #define moon_companion_v1_MoonResponse_payload_position_MSGTYPE moon_companion_v1_PositionData
 #define moon_companion_v1_MoonResponse_payload_time_MSGTYPE moon_companion_v1_TimeData
 #define moon_companion_v1_MoonResponse_payload_notification_MSGTYPE moon_companion_v1_NotificationAck
+#define moon_companion_v1_MoonResponse_payload_open_bulk_channel_MSGTYPE moon_companion_v1_OpenBulkChannelResponse
 #define moon_companion_v1_MoonResponse_payload_updates_MSGTYPE moon_companion_v1_UpdateList
 #define moon_companion_v1_MoonResponse_payload_http_MSGTYPE moon_companion_v1_HttpResponse
 #define moon_companion_v1_MoonResponse_payload_ack_MSGTYPE moon_companion_v1_StatusAck
@@ -542,6 +603,24 @@ X(a, STATIC,   SINGULAR, BOOL,     has_network,       3)
 #define moon_companion_v1_PhoneStatus_CALLBACK NULL
 #define moon_companion_v1_PhoneStatus_DEFAULT NULL
 
+#define moon_companion_v1_OpenBulkChannelRequest_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UENUM,    kind,              1) \
+X(a, STATIC,   SINGULAR, STRING,   name,              2)
+#define moon_companion_v1_OpenBulkChannelRequest_CALLBACK NULL
+#define moon_companion_v1_OpenBulkChannelRequest_DEFAULT NULL
+
+#define moon_companion_v1_OpenBulkChannelResponse_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   spsm,              1) \
+X(a, STATIC,   SINGULAR, UINT32,   total_bytes,       2) \
+X(a, STATIC,   SINGULAR, BYTES,    session_id,        3)
+#define moon_companion_v1_OpenBulkChannelResponse_CALLBACK NULL
+#define moon_companion_v1_OpenBulkChannelResponse_DEFAULT NULL
+
+#define moon_companion_v1_CloseBulkChannelRequest_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, BYTES,    session_id,        1)
+#define moon_companion_v1_CloseBulkChannelRequest_CALLBACK NULL
+#define moon_companion_v1_CloseBulkChannelRequest_DEFAULT NULL
+
 #define moon_companion_v1_ListAppUpdatesRequest_FIELDLIST(X, a) \
 X(a, STATIC,   REPEATED, MESSAGE,  installed,         1)
 #define moon_companion_v1_ListAppUpdatesRequest_CALLBACK NULL
@@ -624,6 +703,9 @@ extern const pb_msgdesc_t moon_companion_v1_SendNotificationRequest_msg;
 extern const pb_msgdesc_t moon_companion_v1_NotificationAck_msg;
 extern const pb_msgdesc_t moon_companion_v1_StatusAck_msg;
 extern const pb_msgdesc_t moon_companion_v1_PhoneStatus_msg;
+extern const pb_msgdesc_t moon_companion_v1_OpenBulkChannelRequest_msg;
+extern const pb_msgdesc_t moon_companion_v1_OpenBulkChannelResponse_msg;
+extern const pb_msgdesc_t moon_companion_v1_CloseBulkChannelRequest_msg;
 extern const pb_msgdesc_t moon_companion_v1_ListAppUpdatesRequest_msg;
 extern const pb_msgdesc_t moon_companion_v1_AppVersion_msg;
 extern const pb_msgdesc_t moon_companion_v1_UpdateList_msg;
@@ -652,6 +734,9 @@ extern const pb_msgdesc_t moon_companion_v1_HttpResponse_msg;
 #define moon_companion_v1_NotificationAck_fields &moon_companion_v1_NotificationAck_msg
 #define moon_companion_v1_StatusAck_fields &moon_companion_v1_StatusAck_msg
 #define moon_companion_v1_PhoneStatus_fields &moon_companion_v1_PhoneStatus_msg
+#define moon_companion_v1_OpenBulkChannelRequest_fields &moon_companion_v1_OpenBulkChannelRequest_msg
+#define moon_companion_v1_OpenBulkChannelResponse_fields &moon_companion_v1_OpenBulkChannelResponse_msg
+#define moon_companion_v1_CloseBulkChannelRequest_fields &moon_companion_v1_CloseBulkChannelRequest_msg
 #define moon_companion_v1_ListAppUpdatesRequest_fields &moon_companion_v1_ListAppUpdatesRequest_msg
 #define moon_companion_v1_AppVersion_fields &moon_companion_v1_AppVersion_msg
 #define moon_companion_v1_UpdateList_fields &moon_companion_v1_UpdateList_msg
@@ -668,6 +753,7 @@ extern const pb_msgdesc_t moon_companion_v1_HttpResponse_msg;
 #define moon_companion_v1_AppVersion_size        50
 #define moon_companion_v1_AvailableUpdate_size   186
 #define moon_companion_v1_CheckFirmwareUpdateRequest_size 17
+#define moon_companion_v1_CloseBulkChannelRequest_size 10
 #define moon_companion_v1_DownloadAppRequest_size 163
 #define moon_companion_v1_GetPositionRequest_size 6
 #define moon_companion_v1_GetTimeRequest_size    0
@@ -681,6 +767,8 @@ extern const pb_msgdesc_t moon_companion_v1_HttpResponse_msg;
 #define moon_companion_v1_MoonRequest_size       953
 #define moon_companion_v1_MoonResponse_size      1524
 #define moon_companion_v1_NotificationAck_size   2
+#define moon_companion_v1_OpenBulkChannelRequest_size 67
+#define moon_companion_v1_OpenBulkChannelResponse_size 22
 #define moon_companion_v1_PairRequest_size       33
 #define moon_companion_v1_PairResponse_size      51
 #define moon_companion_v1_PhoneStatus_size       10

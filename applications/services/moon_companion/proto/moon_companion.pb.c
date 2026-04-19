@@ -54,6 +54,15 @@ PB_BIND(moon_companion_v1_StatusAck, moon_companion_v1_StatusAck, AUTO)
 PB_BIND(moon_companion_v1_PhoneStatus, moon_companion_v1_PhoneStatus, AUTO)
 
 
+PB_BIND(moon_companion_v1_OpenBulkChannelRequest, moon_companion_v1_OpenBulkChannelRequest, AUTO)
+
+
+PB_BIND(moon_companion_v1_OpenBulkChannelResponse, moon_companion_v1_OpenBulkChannelResponse, AUTO)
+
+
+PB_BIND(moon_companion_v1_CloseBulkChannelRequest, moon_companion_v1_CloseBulkChannelRequest, AUTO)
+
+
 PB_BIND(moon_companion_v1_ListAppUpdatesRequest, moon_companion_v1_ListAppUpdatesRequest, 2)
 
 
@@ -82,6 +91,7 @@ PB_BIND(moon_companion_v1_HttpHeader, moon_companion_v1_HttpHeader, AUTO)
 
 
 PB_BIND(moon_companion_v1_HttpResponse, moon_companion_v1_HttpResponse, 2)
+
 
 
 

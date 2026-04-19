@@ -21,6 +21,11 @@
 *SendNotificationRequest.body   max_size:160
 *SendNotificationRequest.tag    max_size:32
 
+# ── Bulk transfer side-channel (Phase 3) ──────────────────────────────
+*OpenBulkChannelRequest.name      max_size:64
+*OpenBulkChannelResponse.session_id  max_size:8
+*CloseBulkChannelRequest.session_id  max_size:8
+
 # ── Tier 2 (Phase 2+) ─────────────────────────────────────────────────
 # Capped aggressively — these are stubs for now. Will revisit when we
 # design the L2CAP CoC side-channel for large payloads.

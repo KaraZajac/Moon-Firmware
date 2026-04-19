@@ -34,6 +34,13 @@ message MoonRequest {
         GetTimeRequest             get_time             = 20;
         SendNotificationRequest    send_notification    = 30;
 
+        // Bulk transfer side-channel (Phase 3). The RPC channel itself
+        // stays on GATT notifications; these verbs are just the handshake
+        // that tells the Flipper which L2CAP CoC PSM the phone is
+        // listening on for a specific transfer intent.
+        OpenBulkChannelRequest     open_bulk_channel    = 40;
+        CloseBulkChannelRequest    close_bulk_channel   = 41;
+
         // Tier 2 — stubs for now, filled in later
         ListAppUpdatesRequest      list_app_updates     = 100;
         DownloadAppRequest         download_app         = 101;
@@ -48,13 +55,14 @@ message MoonResponse {
     MoonStatus  status     = 2;
 
     oneof payload {
-        PairResponse    pair         = 3;
-        PositionData    position     = 10;
-        TimeData        time         = 20;
-        NotificationAck notification = 30;
-        UpdateList      updates      = 100;
-        HttpResponse    http         = 200;
-        StatusAck       ack          = 255;
+        PairResponse            pair              = 3;
+        PositionData            position          = 10;
+        TimeData                time              = 20;
+        NotificationAck         notification      = 30;
+        OpenBulkChannelResponse open_bulk_channel = 40;
+        UpdateList              updates           = 100;
+        HttpResponse            http              = 200;
+        StatusAck               ack               = 255;
     }
 }
 
@@ -178,6 +186,42 @@ message PhoneStatus {
     uint32 battery_pct = 1;
     bool   charging    = 2;
     bool   has_network = 3;
+}
+
+// ── Bulk transfer side-channel (Phase 3) ───────────────────────────────
+//
+// The phone keeps an L2CAP CoC server socket open on a dynamically
+// allocated SPSM. When the Flipper wants to move bulk data it sends an
+// OpenBulkChannelRequest over GATT; the phone replies with the SPSM and
+// expected byte count; the Flipper then dials a CoC connection to that
+// SPSM and the bytes flow directly over the L2CAP channel rather than
+// chunking through GATT notifications.
+//
+// BULK_ECHO_TEST is the bring-up fixture: the phone streams a
+// deterministic byte pattern so the Flipper can verify the channel end
+// to end without any real content source involved.
+
+enum BulkKind {
+    BULK_UNSPECIFIED        = 0;
+    BULK_DOWNLOAD_FAP       = 1;   // phone → Flipper, .fap binary
+    BULK_UPLOAD_FILE        = 2;   // Flipper → phone, capture/dump
+    BULK_FIRMWARE_UPDATE    = 3;   // phone → Flipper, .dfu image
+    BULK_ECHO_TEST          = 4;   // phone → Flipper, bring-up fixture
+}
+
+message OpenBulkChannelRequest {
+    BulkKind kind = 1;
+    string   name = 2;   // intent-specific id: appid, filename, etc.
+}
+
+message OpenBulkChannelResponse {
+    uint32 spsm          = 1;   // L2CAP PSM for the Flipper to dial (0x80–0xFF)
+    uint32 total_bytes   = 2;   // expected transfer size; 0 = unknown / streaming
+    bytes  session_id    = 3;   // 8 bytes; correlates CoC activity to this open
+}
+
+message CloseBulkChannelRequest {
+    bytes session_id = 1;
 }
 
 // ── Tier 2: stubs (filled in later) ────────────────────────────────────
