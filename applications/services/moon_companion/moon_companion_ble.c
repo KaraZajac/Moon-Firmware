@@ -169,6 +169,13 @@ MoonBleState moon_ble_get_state(MoonBle* ble) {
     return ble->state; /* single-word read, no mutex needed */
 }
 
+uint16_t moon_ble_get_connection_handle(MoonBle* ble) {
+    furi_check(ble);
+    /* Single-word read — worst case returns 0 if the field is being
+     * written concurrently, which just means "not connected yet." */
+    return ble->connection_handle;
+}
+
 /* ── State machine entry points ──────────────────────────────────── */
 
 bool moon_ble_start_scan(MoonBle* ble) {

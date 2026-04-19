@@ -68,3 +68,8 @@ void moon_ble_stop(MoonBle* ble);
 bool moon_ble_send(MoonBle* ble, const uint8_t* data, size_t len);
 
 MoonBleState moon_ble_get_state(MoonBle* ble);
+
+/* Return the active peripheral connection handle, or 0 if not connected.
+ * Exposed so app-level transports (e.g. L2CAP CoC for bulk transfers)
+ * can be opened on top of the same link. */
+uint16_t moon_ble_get_connection_handle(MoonBle* ble);

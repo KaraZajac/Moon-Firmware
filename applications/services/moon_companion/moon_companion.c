@@ -5,6 +5,7 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <storage/storage.h>
+#include <furi_ble/l2cap_coc.h>
 #include <pb_decode.h>
 #include <pb_encode.h>
 
@@ -478,6 +479,276 @@ static void moon_companion_on_pair_connected(MoonCompanion* moon) {
     moon_companion_finish_rpc(moon, slot);
 }
 
+/* ── Bulk transfer (L2CAP CoC) ──────────────────────────────────
+ *
+ * The Moon Companion protocol's bulk path works like this:
+ *
+ *   1. Caller invokes moon_companion_bulk_open_blocking(kind, name, ...).
+ *   2. We send an OpenBulkChannelRequest on GATT; phone replies with
+ *      the PSM its L2CAP server is listening on + an 8-byte session id.
+ *   3. We dial an L2CAP CoC to that PSM.
+ *   4. Phone streams bytes on the CoC; each chunk lands in our
+ *      moon_bulk_coc_callback (on the BT thread) and is forwarded to
+ *      the caller's on_data hook.
+ *   5. Phone closes the CoC when done, we unblock the caller with the
+ *      final byte count.
+ *
+ * Only one bulk transfer is permitted at a time — the code keeps a
+ * single `active_bulk` slot on the service struct.
+ */
+
+static void moon_bulk_coc_callback(BleL2capCocEvent* event, void* context) {
+    MoonCompanion* moon = context;
+    furi_mutex_acquire(moon->mutex, FuriWaitForever);
+    MoonBulkSession* s = moon->active_bulk;
+    if(!s) {
+        /* CoC event on a stale channel — ignore. */
+        furi_mutex_release(moon->mutex);
+        return;
+    }
+
+    switch(event->type) {
+    case BleL2capCocEventConnected:
+        s->coc_channel_index = event->channel_index;
+        s->coc_channel_valid = true;
+        FURI_LOG_I(TAG, "Bulk CoC up (channel=%u, peer_mtu=%u)",
+                   event->channel_index, event->connected.peer_mtu);
+        furi_event_flag_set(s->event, MOON_BULK_EVT_COC_CONNECTED);
+        break;
+
+    case BleL2capCocEventDataReceived: {
+        MoonBulkDataCallback cb = s->on_data;
+        void* cb_ctx = s->on_data_ctx;
+        const uint8_t* data = event->data.data;
+        uint16_t len = event->data.data_len;
+        s->bytes_received += len;
+        /* Drop the mutex before invoking the caller's callback — it
+         * might call back into the service (e.g., to log via the same
+         * mutex) and we don't want to deadlock. */
+        furi_mutex_release(moon->mutex);
+        if(cb && len) cb(data, len, cb_ctx);
+        return; /* already released */
+    }
+
+    case BleL2capCocEventDisconnected:
+        FURI_LOG_I(TAG, "Bulk CoC closed after %lu bytes",
+                   (unsigned long)s->bytes_received);
+        s->coc_channel_valid = false;
+        furi_event_flag_set(s->event, MOON_BULK_EVT_COC_DONE);
+        break;
+
+    case BleL2capCocEventError:
+        FURI_LOG_W(TAG, "Bulk CoC error 0x%04x", event->error.code);
+        s->error_code = event->error.code;
+        s->coc_channel_valid = false;
+        furi_event_flag_set(s->event, MOON_BULK_EVT_COC_ERROR);
+        break;
+
+    case BleL2capCocEventCreditsReceived:
+    case BleL2capCocEventTxDone:
+        /* Don't care — we're receive-only in Phase 3. */
+        break;
+    }
+
+    furi_mutex_release(moon->mutex);
+}
+
+/* Called from moon_companion_deliver_response when a response with
+ * which_payload == open_bulk_channel arrives. Pulls the PSM + session
+ * id out of the decoded response and signals the waiting thread. */
+static void moon_bulk_on_open_response(
+    MoonCompanion* moon,
+    const moon_companion_v1_MoonResponse* resp) {
+    furi_mutex_acquire(moon->mutex, FuriWaitForever);
+    MoonBulkSession* s = moon->active_bulk;
+    if(s) {
+        if(resp->status == moon_companion_v1_MoonStatus_MOON_OK &&
+           resp->which_payload == moon_companion_v1_MoonResponse_open_bulk_channel_tag) {
+            s->spsm = (uint16_t)resp->payload.open_bulk_channel.spsm;
+            s->expected_bytes = resp->payload.open_bulk_channel.total_bytes;
+            size_t id_len = resp->payload.open_bulk_channel.session_id.size;
+            if(id_len > sizeof(s->session_id)) id_len = sizeof(s->session_id);
+            memcpy(s->session_id, resp->payload.open_bulk_channel.session_id.bytes, id_len);
+            furi_event_flag_set(s->event, MOON_BULK_EVT_OPENED);
+        } else {
+            FURI_LOG_W(TAG, "OpenBulkChannel refused (status=%d)", resp->status);
+            s->error_code = 0xFFFF;
+            furi_event_flag_set(s->event, MOON_BULK_EVT_COC_ERROR);
+        }
+    }
+    furi_mutex_release(moon->mutex);
+}
+
+bool moon_companion_bulk_open_blocking(
+    MoonCompanion* moon,
+    MoonBulkKind kind,
+    const char* name,
+    uint32_t timeout_ms,
+    MoonBulkDataCallback on_data,
+    void* on_data_ctx,
+    uint32_t* out_bytes_received,
+    uint16_t* out_error_code) {
+    furi_check(moon);
+    if(timeout_ms == 0) timeout_ms = 30 * 1000;
+
+    if(moon_ble_get_state(moon->ble) != MoonBleStateConnected ||
+       !moon->persist.paired) {
+        if(out_error_code) *out_error_code = 0xFFFE; /* not connected */
+        return false;
+    }
+
+    uint16_t conn_handle = moon_ble_get_connection_handle(moon->ble);
+    if(conn_handle == 0) {
+        if(out_error_code) *out_error_code = 0xFFFE;
+        return false;
+    }
+
+    /* Allocate the session up front. CoC events the peer might already
+     * be delivering need somewhere to land — publish active_bulk before
+     * we send the request. */
+    MoonBulkSession* s = malloc(sizeof(MoonBulkSession));
+    memset(s, 0, sizeof(*s));
+    s->kind = kind;
+    s->on_data = on_data;
+    s->on_data_ctx = on_data_ctx;
+    s->event = furi_event_flag_alloc();
+
+    furi_mutex_acquire(moon->mutex, FuriWaitForever);
+    if(moon->active_bulk != NULL) {
+        furi_mutex_release(moon->mutex);
+        furi_event_flag_free(s->event);
+        free(s);
+        if(out_error_code) *out_error_code = 0xFFFD; /* busy */
+        return false;
+    }
+    moon->active_bulk = s;
+    furi_mutex_release(moon->mutex);
+
+    /* Register the CoC callback on our BLE connection. */
+    ble_l2cap_coc_set_callback(conn_handle, moon_bulk_coc_callback, moon);
+
+    bool success = false;
+    uint16_t err = 0xFFFF;
+
+    /* Step 1: send OpenBulkChannelRequest and wait for the response. */
+    moon_companion_v1_MoonRequest req = moon_companion_v1_MoonRequest_init_zero;
+    req.request_id = moon_companion_next_rid(moon);
+    req.auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
+    memcpy(req.auth_token.bytes, moon->persist.auth_token, MOON_COMPANION_AUTH_TOKEN_SIZE);
+    req.which_payload = moon_companion_v1_MoonRequest_open_bulk_channel_tag;
+    req.payload.open_bulk_channel.kind = (moon_companion_v1_BulkKind)kind;
+    if(name) {
+        strncpy(req.payload.open_bulk_channel.name, name,
+                sizeof(req.payload.open_bulk_channel.name) - 1);
+    }
+
+    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, req.request_id);
+    if(!slot) {
+        FURI_LOG_E(TAG, "RPC table full for OpenBulkChannel");
+        goto cleanup;
+    }
+    if(!moon_companion_encode_and_send(moon, &req)) {
+        FURI_LOG_E(TAG, "Failed to send OpenBulkChannelRequest");
+        moon_companion_finish_rpc(moon, slot);
+        goto cleanup;
+    }
+
+    uint32_t flags = furi_event_flag_wait(
+        slot->done, 0x1, FuriFlagWaitAny, MOON_COMPANION_RPC_TIMEOUT_MS);
+
+    furi_mutex_acquire(moon->mutex, FuriWaitForever);
+    bool filled = slot->filled;
+    moon_companion_v1_MoonResponse* resp = slot->response_buf;
+    slot->response_buf = NULL;
+    furi_mutex_release(moon->mutex);
+
+    if(!filled || !resp || (flags & FuriFlagError)) {
+        FURI_LOG_E(TAG, "OpenBulkChannel RPC timed out");
+        if(resp) free(resp);
+        moon_companion_finish_rpc(moon, slot);
+        err = 0xFFF0;
+        goto cleanup;
+    }
+    moon_bulk_on_open_response(moon, resp);
+    free(resp);
+    moon_companion_finish_rpc(moon, slot);
+
+    /* Step 2: wait for MOON_BULK_EVT_OPENED. moon_bulk_on_open_response
+     * set it if the response carried a valid PSM; otherwise it set
+     * MOON_BULK_EVT_COC_ERROR. */
+    uint32_t got = furi_event_flag_wait(
+        s->event,
+        MOON_BULK_EVT_OPENED | MOON_BULK_EVT_COC_ERROR,
+        FuriFlagWaitAny,
+        MOON_COMPANION_RPC_TIMEOUT_MS);
+    if(!(got & MOON_BULK_EVT_OPENED) || (got & FuriFlagError)) {
+        err = s->error_code ? s->error_code : 0xFFF1;
+        goto cleanup;
+    }
+
+    /* Step 3: dial the CoC. */
+    FURI_LOG_I(TAG, "Dialing CoC: conn=0x%04x psm=%u expected=%lu bytes",
+               conn_handle, s->spsm, (unsigned long)s->expected_bytes);
+    if(!ble_l2cap_coc_connect(
+           conn_handle, s->spsm, MOON_BULK_MTU, MOON_BULK_MPS, MOON_BULK_CREDITS)) {
+        FURI_LOG_E(TAG, "ble_l2cap_coc_connect failed");
+        err = 0xFFF2;
+        goto cleanup;
+    }
+
+    /* Step 4: wait for Connected, then for Done/Error (data arrives in
+     * between via the callback). Use the whole caller-supplied timeout
+     * for the full transfer window. */
+    got = furi_event_flag_wait(
+        s->event,
+        MOON_BULK_EVT_COC_CONNECTED | MOON_BULK_EVT_COC_ERROR,
+        FuriFlagWaitAny,
+        10 * 1000);
+    if(!(got & MOON_BULK_EVT_COC_CONNECTED)) {
+        err = s->error_code ? s->error_code : 0xFFF3;
+        goto cleanup;
+    }
+
+    got = furi_event_flag_wait(
+        s->event,
+        MOON_BULK_EVT_COC_DONE | MOON_BULK_EVT_COC_ERROR,
+        FuriFlagWaitAny,
+        timeout_ms);
+
+    if(got & MOON_BULK_EVT_COC_DONE) {
+        /* Clean close. Transfer is successful iff expected_bytes is 0
+         * (streaming, take whatever we got) or we received exactly that
+         * many bytes. */
+        if(s->expected_bytes == 0 || s->bytes_received == s->expected_bytes) {
+            success = true;
+            err = 0;
+        } else {
+            err = 0xFFF4; /* short read */
+        }
+    } else if(got & MOON_BULK_EVT_COC_ERROR) {
+        err = s->error_code ? s->error_code : 0xFFF5;
+    } else {
+        /* Timeout — attempt to tear down the channel. */
+        if(s->coc_channel_valid) {
+            ble_l2cap_coc_disconnect(s->coc_channel_index);
+        }
+        err = 0xFFF6;
+    }
+
+cleanup:
+    if(out_bytes_received) *out_bytes_received = s->bytes_received;
+    if(out_error_code) *out_error_code = err;
+
+    furi_mutex_acquire(moon->mutex, FuriWaitForever);
+    moon->active_bulk = NULL;
+    furi_mutex_release(moon->mutex);
+
+    ble_l2cap_coc_set_callback(conn_handle, NULL, NULL);
+    furi_event_flag_free(s->event);
+    free(s);
+    return success;
+}
+
 /* ── Service entry point ──────────────────────────────────────── */
 
 int32_t moon_companion_srv(void* p) {
@@ -497,6 +768,10 @@ int32_t moon_companion_srv(void* p) {
     moon->ble = moon_ble_alloc();
     moon_ble_set_state_callback(moon->ble, moon_companion_on_ble_state, moon);
     moon_ble_set_rx_callback(moon->ble, moon_companion_on_rpc_rx, moon);
+
+    /* Bring up the L2CAP CoC event pump so bulk transfers work once a
+     * link is established. Idempotent; safe to call unconditionally. */
+    ble_l2cap_coc_init();
 
     furi_record_create(RECORD_MOON_COMPANION, moon);
 

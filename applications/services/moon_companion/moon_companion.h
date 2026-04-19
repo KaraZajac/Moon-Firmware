@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -120,6 +121,42 @@ void moon_companion_unsubscribe_position(
 /* ── Time ──────────────────────────────────────────────────────────── */
 
 bool moon_companion_get_time(MoonCompanion* moon, MoonTime* out);
+
+/* ── Bulk transfer (L2CAP CoC side-channel, Phase 3) ──────────────── */
+
+typedef enum {
+    MoonBulkKindUnspecified    = 0,
+    MoonBulkKindDownloadFap    = 1,   /* phone → Flipper, .fap binary */
+    MoonBulkKindUploadFile     = 2,   /* Flipper → phone, capture/dump */
+    MoonBulkKindFirmwareUpdate = 3,   /* phone → Flipper, .dfu image */
+    MoonBulkKindEchoTest       = 4,   /* phone → Flipper, bring-up fixture */
+} MoonBulkKind;
+
+/* Called once per received chunk. `data` is only valid during the call;
+ * copy if needed. Invoked from the BT service thread — do minimal work. */
+typedef void (*MoonBulkDataCallback)(
+    const uint8_t* data,
+    size_t len,
+    void* context);
+
+/* Synchronously run a bulk transfer over L2CAP CoC. Blocks the caller
+ * until the phone closes the channel (success) or the transfer errors
+ * out / times out. Writes total bytes received + final error code to
+ * the out params (NULL-safe). Returns true iff the transfer completed
+ * with all expected bytes received.
+ *
+ * Intended caller is the settings-side test button or a future
+ * download-manager scene — do not call from the Moon Companion service
+ * thread (it would deadlock on the response RPC). */
+bool moon_companion_bulk_open_blocking(
+    MoonCompanion* moon,
+    MoonBulkKind kind,
+    const char* name,
+    uint32_t timeout_ms,
+    MoonBulkDataCallback on_data,
+    void* on_data_ctx,
+    uint32_t* out_bytes_received,
+    uint16_t* out_error_code);
 
 /* ── Notifications (Flipper → phone → user) ────────────────────────── */
 
