@@ -26,6 +26,7 @@ typedef enum {
     MoonBleStateIdle,        /* not scanning, not connected */
     MoonBleStateScanning,    /* looking for our service UUID */
     MoonBleStateConnecting,  /* GAP create_connection in flight */
+    MoonBleStatePairing,     /* SMP Just-Works + bonding in flight */
     MoonBleStateDiscovering, /* GATT primary / char discovery */
     MoonBleStateConnected,   /* RPC up, notifications enabled */
     MoonBleStateError,       /* transient — will auto-recover */

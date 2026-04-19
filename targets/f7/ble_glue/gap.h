@@ -195,6 +195,15 @@ void gap_set_pairing_method(uint32_t fixed_pin);
  *  the way. */
 void gap_set_no_pairing(void);
 
+/** Configure GAP auth for SMP Just-Works pairing + bonding.
+ *  IO=NO_INPUT_NO_OUTPUT, MITM=NOT_REQUIRED, LESC=SUPPORTED,
+ *  bonding=on. The central must follow with gap_pair() after
+ *  connection; no user interaction is required on either end.
+ *  Needed on stacks that refuse GATT discovery of custom services
+ *  until the link is bonded (macOS Core Bluetooth is the canonical
+ *  example). */
+void gap_set_just_works_pairing(void);
+
 /** Initiate pairing/bonding with the connected peripheral (central role).
  *  Must be called after gap_connect() succeeds and before GATT discovery
  *  if the remote device requires authentication.

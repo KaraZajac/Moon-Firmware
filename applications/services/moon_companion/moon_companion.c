@@ -560,6 +560,7 @@ int32_t moon_companion_srv(void* p) {
                 moon->state = MoonConnStateScanning;
                 break;
             case MoonBleStateConnecting:
+            case MoonBleStatePairing:
             case MoonBleStateDiscovering:
                 moon->state = MoonConnStateConnecting;
                 break;

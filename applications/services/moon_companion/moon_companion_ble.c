@@ -12,7 +12,17 @@
 
 #define MOON_BLE_TICK_MS         100
 #define MOON_BLE_CONNECT_TIMEOUT (5000 / MOON_BLE_TICK_MS)
-#define MOON_BLE_DISCOVER_DELAY  5 /* ticks between connect and discover */
+#define MOON_BLE_PAIR_DELAY      5  /* send Pair Request this many ticks after connect */
+#define MOON_BLE_PAIR_SETTLE     20 /* ticks to wait for SMP Just-Works to settle */
+#define MOON_BLE_DISCOVER_DELAY  5   /* first discover attempt, 500 ms into Discovering */
+#define MOON_BLE_DISCOVER_RETRY  3   /* retry every 3 ticks (300 ms) */
+/* Android's system-level GATT clients (MCP, CCS, TMAP, HAS, etc.) all kick
+ * off opportunistic discovery against the Flipper's peripheral GATT server
+ * on every new link. With a single shared ATT slot in the ST stack, our
+ * central-side disc_all_primary_services returns 0x0C (COMMAND_DISALLOWED)
+ * until that flurry drains. Observed it taking well over 5 s on a modern
+ * Pixel; keep retrying for 25 s before declaring the peer unreachable. */
+#define MOON_BLE_DISCOVER_TIMEOUT 250
 
 /* ── UUID helpers ──────────────────────────────────────────────────────
  *
@@ -189,6 +199,13 @@ bool moon_ble_start_scan(MoonBle* ble) {
     }
 
     ble_gatt_client_init();
+    /* Configure Just-Works pairing + bonding. Without this, macOS Core
+     * Bluetooth refuses to expose custom services to an unpaired central
+     * — service discovery returns ATT 0x0A (Attribute Not Found) for
+     * our UUID even though the peer has it registered. Bonding also
+     * means subsequent reconnects reuse the LTK, so the user never sees
+     * a pairing prompt after the first time. */
+    gap_set_just_works_pairing();
     gap_set_scan_callback(moon_ble_scan_callback, ble);
 
     GapScanParams params = {
@@ -341,9 +358,14 @@ static void moon_ble_gatt_callback(BleGattClientEvent* event, void* context) {
     }
 
     case BleGattClientEventError:
-        furi_mutex_acquire(ble->mutex, FuriWaitForever);
-        ble->gatt_error = true;
-        furi_mutex_release(ble->mutex);
+        /* Don't treat arbitrary GATT errors as fatal. On a dual-role
+         * link the peer often issues its own reads against us (device
+         * name, appearance, etc.) that land here as 0x0A Attribute Not
+         * Found — has nothing to do with our central-side discovery.
+         * Rely on the discovery timeout to catch a genuinely stuck
+         * state instead. */
+        FURI_LOG_D(TAG, "GATT error %02x (ignored, not state-bearing)",
+                   event->error.error_code);
         break;
 
     default:
@@ -379,14 +401,7 @@ static void moon_ble_tick(void* ctx) {
     bool services_ready = ble->services_ready;
     bool chars_ready = ble->chars_ready;
     bool subscribe_complete = ble->subscribe_complete;
-    bool gatt_error = ble->gatt_error;
     furi_mutex_release(ble->mutex);
-
-    if(gatt_error) {
-        FURI_LOG_W(TAG, "GATT error — tearing down and retrying scan");
-        moon_ble_stop(ble);
-        return;
-    }
 
     switch(s) {
     case MoonBleStateScanning:
@@ -414,8 +429,7 @@ static void moon_ble_tick(void* ctx) {
             ble->connection_handle = h;
             furi_mutex_release(ble->mutex);
             ble_gatt_client_set_callback(h, moon_ble_gatt_callback, ble);
-            ble_gatt_client_exchange_mtu(h);
-            moon_ble_transition(ble, MoonBleStateDiscovering);
+            moon_ble_transition(ble, MoonBleStatePairing);
         } else if(ticks >= MOON_BLE_CONNECT_TIMEOUT) {
             FURI_LOG_E(TAG, "Connect timeout");
             moon_ble_transition(ble, MoonBleStateError);
@@ -423,12 +437,58 @@ static void moon_ble_tick(void* ctx) {
         break;
     }
 
+    case MoonBleStatePairing:
+        /* Fire the SMP Pairing Request a few ticks after connect so the
+         * link is fully established. macOS Core Bluetooth will silently
+         * refuse GATT discovery until the link is bonded — we don't have
+         * a completion event for central-role pairing, so just wait for
+         * the SMP exchange to settle (usually < 1 s) before kicking off
+         * MTU + discovery. Subsequent reconnects reuse the stored LTK
+         * and this whole phase turns into a no-op. */
+        if(ticks == MOON_BLE_PAIR_DELAY) {
+            if(!gap_pair(ble->connection_handle, false)) {
+                FURI_LOG_W(TAG, "gap_pair returned false — peer may already be bonded");
+            }
+        }
+        if(gap_get_connection_handle_by_role(true) == 0) {
+            FURI_LOG_W(TAG, "Peer disconnected during pairing");
+            moon_ble_stop(ble);
+            break;
+        }
+        if(ticks >= MOON_BLE_PAIR_SETTLE) {
+            FURI_LOG_I(TAG, "Pairing window elapsed, starting MTU + discovery");
+            ble_gatt_client_exchange_mtu(ble->connection_handle);
+            moon_ble_transition(ble, MoonBleStateDiscovering);
+        }
+        break;
+
     case MoonBleStateDiscovering:
-        /* MTU exchange finishes asynchronously — give it a few ticks, then
-         * kick off service discovery. We don't block on the MTU event
-         * since a 23-byte MTU is still usable (pairing / tiny requests). */
-        if(ticks == MOON_BLE_DISCOVER_DELAY) {
-            ble_gatt_client_discover_services(ble->connection_handle);
+        /* MTU exchange and service discovery share the single outstanding
+         * ATT request slot — kick off discover only once MTU has settled.
+         * Some peers (notably `bless` on macOS) take ≥ 600 ms to reply to
+         * the MTU exchange; firing discover too soon returns 0x0C
+         * (COMMAND_DISALLOWED) with no retry path. Retry every few ticks
+         * until it sticks or we hit a hard timeout. */
+        if(!services_ready && ble->rpc_tx_handle == 0 && ticks >= MOON_BLE_DISCOVER_DELAY &&
+           ((ticks - MOON_BLE_DISCOVER_DELAY) % MOON_BLE_DISCOVER_RETRY) == 0) {
+            if(!ble_gatt_client_discover_services(ble->connection_handle)) {
+                FURI_LOG_W(TAG, "discover_services busy, will retry");
+            }
+        }
+
+        if(ticks >= MOON_BLE_DISCOVER_TIMEOUT && !services_ready && ble->rpc_tx_handle == 0) {
+            FURI_LOG_E(TAG, "Discovery timeout — tearing down");
+            moon_ble_transition(ble, MoonBleStateError);
+            break;
+        }
+
+        /* If the peer disconnected mid-discovery (some peers drop after
+         * a 0x0C or after a slow ATT response), there's no point waiting
+         * any further — bail out so the caller can retry a fresh scan. */
+        if(gap_get_connection_handle_by_role(true) == 0) {
+            FURI_LOG_W(TAG, "Peer disconnected during discovery");
+            moon_ble_stop(ble);
+            break;
         }
 
         if(services_ready && ble->rpc_tx_handle == 0) {

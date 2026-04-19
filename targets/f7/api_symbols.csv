@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.4,,
+Version,+,87.5,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -1968,6 +1968,7 @@ Function,-,gap_init,_Bool,"GapConfig*, const GapRootSecurityKeys*, GapEventCallb
 Function,+,gap_is_activity_active,_Bool,GapActivity
 Function,+,gap_pair,_Bool,"uint16_t, _Bool"
 Function,+,gap_set_fixed_pin,void,uint32_t
+Function,+,gap_set_just_works_pairing,void,
 Function,+,gap_set_no_pairing,void,
 Function,+,gap_set_pairing_method,void,uint32_t
 Function,+,gap_set_phy_preference,_Bool,"uint16_t, uint8_t, uint8_t"

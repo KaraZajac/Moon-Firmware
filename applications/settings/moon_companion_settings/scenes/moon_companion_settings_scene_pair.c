@@ -6,9 +6,12 @@
 static uint32_t poll_elapsed_ms;
 
 static void update_popup(MoonCompSettingsApp* app, MoonConnectionState state) {
-    char header[32];
+    /* Just-Works pairing: no PIN is exchanged. Keep the header stable
+     * instead of flashing a decorative 6-digit placeholder the user can't
+     * do anything with. */
+    (void)app;
+    const char* header = "Pairing";
     char body[96];
-    snprintf(header, sizeof(header), "Pair: %s", app->pin);
 
     switch(state) {
     case MoonConnStateConnected:
