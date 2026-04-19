@@ -3,6 +3,7 @@
 
 #include <core/check.h>
 #include <furi_hal_bt.h>
+#include <services/battery_service.h>
 #include <notification/notification_messages.h>
 #include <gui/elements.h>
 #include <assets_icons.h>
@@ -99,6 +100,34 @@ static void bt_pin_code_hide(Bt* bt) {
     }
 }
 
+static void bt_battery_level_changed_callback(const void* _event, void* context) {
+    furi_assert(_event);
+    furi_assert(context);
+
+    Bt* bt = context;
+    BtMessage message = {};
+    const PowerEvent* event = _event;
+    bool is_charging = false;
+    switch(event->type) {
+    case PowerEventTypeBatteryLevelChanged:
+        message.type = BtMessageTypeUpdateBatteryLevel;
+        message.data.battery_level = event->data.battery_level;
+        furi_check(
+            furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
+        break;
+    case PowerEventTypeStartCharging:
+        is_charging = true;
+        /* fallthrough */
+    case PowerEventTypeFullyCharged:
+    case PowerEventTypeStopCharging:
+        message.type = BtMessageTypeUpdatePowerState;
+        message.data.power_state_charging = is_charging;
+        furi_check(
+            furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) == FuriStatusOk);
+        break;
+    }
+}
+
 static bool bt_pin_code_verify_event_handler(Bt* bt, uint32_t pin) {
     furi_assert(bt);
     bt->pin_code = pin;
@@ -133,6 +162,13 @@ Bt* bt_alloc(void) {
 
     bt->dialogs = furi_record_open(RECORD_DIALOGS);
 
+    /* Subscribe to battery/power events so the peripheral Battery Service
+     * reports current Flipper battery state to connected centrals
+     * (e.g. phones paired via BadUSB or other BLE HID apps). */
+    bt->power = furi_record_open(RECORD_POWER);
+    FuriPubSub* power_pubsub = power_get_pubsub(bt->power);
+    furi_pubsub_subscribe(power_pubsub, bt_battery_level_changed_callback, bt);
+
     bt->api_event = furi_event_flag_alloc();
 
     return bt;
@@ -152,6 +188,17 @@ static bool bt_on_gap_event_callback(GapEvent event, void* context) {
         if(!event.is_central) {
             bt->status = BtStatusConnected;
             do_update_status = true;
+            /* Push an initial battery level snapshot so the peer sees a
+             * real value on first read instead of the default 0. */
+            PowerInfo info;
+            power_get_info(bt->power, &info);
+            BtMessage message = {
+                .type = BtMessageTypeUpdateBatteryLevel,
+                .data.battery_level = info.charge,
+            };
+            furi_check(
+                furi_message_queue_put(bt->message_queue, &message, FuriWaitForever) ==
+                FuriStatusOk);
         }
         ret = true;
     } else if(event.type == GapEventTypeDisconnected) {
@@ -396,6 +443,10 @@ int32_t bt_srv(void* p) {
             if(bt->status_changed_cb) {
                 bt->status_changed_cb(bt->status, bt->status_changed_ctx);
             }
+        } else if(message.type == BtMessageTypeUpdateBatteryLevel) {
+            furi_hal_bt_update_battery_level(message.data.battery_level);
+        } else if(message.type == BtMessageTypeUpdatePowerState) {
+            furi_hal_bt_update_power_state(message.data.power_state_charging);
         } else if(message.type == BtMessageTypePinCodeShow) {
             bt_pin_code_show(bt, message.data.pin_code);
         } else if(message.type == BtMessageTypeKeysStorageUpdated) {

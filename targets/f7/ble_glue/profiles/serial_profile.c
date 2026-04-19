@@ -2,6 +2,8 @@
 
 #include <gap.h>
 #include <furi_ble/profile_interface.h>
+#include <services/dev_info_service.h>
+#include <services/battery_service.h>
 #include <services/serial_service.h>
 #include <furi.h>
 #include <ble/core/ble_defs.h>
@@ -9,6 +11,8 @@
 typedef struct {
     FuriHalBleProfileBase base;
 
+    BleServiceDevInfo* dev_info_svc;
+    BleServiceBattery* battery_svc;
     BleServiceSerial* serial_svc;
 } BleProfileSerial;
 _Static_assert(offsetof(BleProfileSerial, base) == 0, "Wrong layout");
@@ -19,6 +23,9 @@ static FuriHalBleProfileBase* ble_profile_serial_start(FuriHalBleProfileParams p
     BleProfileSerial* profile = malloc(sizeof(BleProfileSerial));
 
     profile->base.config = ble_profile_serial;
+
+    profile->dev_info_svc = ble_svc_dev_info_start();
+    profile->battery_svc = ble_svc_battery_start(true);
     profile->serial_svc = ble_svc_serial_start();
 
     return &profile->base;
@@ -29,6 +36,8 @@ static void ble_profile_serial_stop(FuriHalBleProfileBase* profile) {
     furi_check(profile->config == ble_profile_serial);
 
     BleProfileSerial* serial_profile = (BleProfileSerial*)profile;
+    ble_svc_battery_stop(serial_profile->battery_svc);
+    ble_svc_dev_info_stop(serial_profile->dev_info_svc);
     ble_svc_serial_stop(serial_profile->serial_svc);
 }
 

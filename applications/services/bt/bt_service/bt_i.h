@@ -11,6 +11,7 @@
 #include <gui/view.h>
 
 #include <dialogs/dialogs.h>
+#include <power/power_service/power.h>
 #include <notification/notification.h>
 #include <storage/storage.h>
 
@@ -21,6 +22,8 @@
 
 typedef enum {
     BtMessageTypeUpdateStatus,
+    BtMessageTypeUpdateBatteryLevel,
+    BtMessageTypeUpdatePowerState,
     BtMessageTypePinCodeShow,
     BtMessageTypeKeysStorageUpdated,
     BtMessageTypeSetProfile,
@@ -38,6 +41,8 @@ typedef struct {
 
 typedef union {
     uint32_t pin_code;
+    uint8_t battery_level;
+    bool power_state_charging;
     struct {
         const FuriHalBleProfileTemplate* template;
         FuriHalBleProfileParams params;
@@ -73,6 +78,7 @@ struct Bt {
     uint32_t pin_code;
     DialogsApp* dialogs;
     DialogMessage* dialog_message;
+    Power* power;
     FuriEventFlag* api_event;
     BtStatusChangedCallback status_changed_cb;
     void* status_changed_ctx;

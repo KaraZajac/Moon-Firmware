@@ -16,6 +16,7 @@
 #include <furi_hal_version.h>
 #include <furi_hal_power.h>
 #include <furi_hal_bus.h>
+#include <services/battery_service.h>
 #include <furi.h>
 
 #define TAG "FuriHalBt"
@@ -279,6 +280,14 @@ void furi_hal_bt_stop_advertising(void) {
             furi_delay_tick(1);
         }
     }
+}
+
+void furi_hal_bt_update_battery_level(uint8_t battery_level) {
+    ble_svc_battery_state_update(&battery_level, NULL);
+}
+
+void furi_hal_bt_update_power_state(bool charging) {
+    ble_svc_battery_state_update(NULL, &charging);
 }
 
 void furi_hal_bt_get_key_storage_buff(uint8_t** key_buff_addr, uint16_t* key_buff_size) {
