@@ -15,6 +15,12 @@ App(
     ],
     fap_icon="icon.png",
     fap_category="Sub-GHz",
+    # ForceXIP: demand-stream .text from flash rather than copying the
+    # whole ~600 KB fap into RAM. The timing-sensitive pulse capture +
+    # DMA path lives in furi_hal (always in SRAM), so the FAP-side
+    # decoder threads can tolerate XIP prefetch latency. Keeps SubGHz
+    # loadable after Moon Companion's ~5.5 KB at-idle overhead landed.
+    flags=["ForceXIP"],
 )
 
 App(
