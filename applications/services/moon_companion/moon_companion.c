@@ -20,6 +20,7 @@ typedef enum {
     MoonMsgYield,
     MoonMsgResume,
     MoonMsgBleStateChanged,
+    MoonMsgReconnect,
 } MoonMsgType;
 
 typedef struct {
@@ -68,6 +69,15 @@ static void moon_companion_save(MoonCompanion* moon) {
 static void moon_companion_on_ble_state(MoonBleState state, void* ctx) {
     MoonCompanion* moon = ctx;
     MoonMsg m = {.type = MoonMsgBleStateChanged, .data.ble_state = state};
+    furi_message_queue_put(moon->queue, &m, 0);
+}
+
+/* Fires a few seconds after the BLE link goes Idle/Error to retry scan.
+ * Runs on the FuriTimer thread — post to the service queue and let the
+ * service thread do the actual work (it owns the BLE state). */
+static void moon_companion_reconnect_tick(void* ctx) {
+    MoonCompanion* moon = ctx;
+    MoonMsg m = {.type = MoonMsgReconnect};
     furi_message_queue_put(moon->queue, &m, 0);
 }
 
@@ -479,6 +489,8 @@ int32_t moon_companion_srv(void* p) {
     moon->mutex = furi_mutex_alloc(FuriMutexTypeNormal);
     moon->queue = furi_message_queue_alloc(16, sizeof(MoonMsg));
     moon->state = MoonConnStateDisconnected;
+    moon->reconnect_timer =
+        furi_timer_alloc(moon_companion_reconnect_tick, FuriTimerTypeOnce, moon);
 
     moon_companion_load(moon);
 
@@ -518,12 +530,20 @@ int32_t moon_companion_srv(void* p) {
         case MoonMsgCancelPairing:
             FURI_LOG_I(TAG, "Cancel pairing");
             moon->pairing_active = false;
-            moon_ble_stop(moon->ble);
+            /* Only tear the link down if pairing never completed. A
+             * successful pair left persist.paired = true; in that case
+             * we want the connection to survive the pair-scene exit so
+             * other apps can pull position / time / notifications. */
+            if(!moon->persist.paired) {
+                furi_timer_stop(moon->reconnect_timer);
+                moon_ble_stop(moon->ble);
+            }
             break;
 
         case MoonMsgForget:
             memset(&moon->persist, 0, sizeof(moon->persist));
             moon_companion_save(moon);
+            furi_timer_stop(moon->reconnect_timer);
             moon_ble_stop(moon->ble);
             FURI_LOG_I(TAG, "Paired phone forgotten");
             break;
@@ -536,6 +556,7 @@ int32_t moon_companion_srv(void* p) {
             furi_mutex_release(moon->mutex);
             FURI_LOG_I(TAG, "Yielding BLE for %lu ms",
                        (unsigned long)msg.data.yield_duration_ms);
+            furi_timer_stop(moon->reconnect_timer);
             moon_ble_stop(moon->ble);
             break;
 
@@ -546,6 +567,18 @@ int32_t moon_companion_srv(void* p) {
             furi_mutex_release(moon->mutex);
             FURI_LOG_I(TAG, "Resumed");
             if(moon->persist.paired) moon_ble_start_scan(moon->ble);
+            break;
+
+        case MoonMsgReconnect:
+            /* The reconnect timer fired — try to re-establish the link
+             * if we still should. Bail if the user forgot the phone in
+             * the meantime, yielded the radio, or we're already back up
+             * (a concurrent event could have raced us). */
+            if(moon->persist.paired && !moon->yielded && !moon->pairing_active &&
+               moon_ble_get_state(moon->ble) == MoonBleStateIdle) {
+                FURI_LOG_I(TAG, "Auto-reconnect: re-scanning for paired phone");
+                moon_ble_start_scan(moon->ble);
+            }
             break;
 
         case MoonMsgBleStateChanged:
@@ -571,11 +604,29 @@ int32_t moon_companion_srv(void* p) {
             furi_mutex_release(moon->mutex);
 
             if(msg.data.ble_state == MoonBleStateConnected) {
+                /* Link is back up — cancel any pending reconnect timer
+                 * so we don't kick off a redundant scan. */
+                furi_timer_stop(moon->reconnect_timer);
                 if(moon->pairing_active) {
                     moon_companion_on_pair_connected(moon);
                 } else if(moon->persist.paired) {
                     moon_companion_on_authed_connected(moon);
                 }
+            } else if(
+                (msg.data.ble_state == MoonBleStateIdle ||
+                 msg.data.ble_state == MoonBleStateError) &&
+                moon->persist.paired && !moon->yielded && !moon->pairing_active) {
+                /* Paired phone fell off the link. Arm the reconnect timer
+                 * rather than immediately re-scanning, so a flaky peer or
+                 * out-of-range phone doesn't turn the service into a tight
+                 * scan/connect/fail loop. */
+                FURI_LOG_I(TAG,
+                           "Link lost (ble_state=%d) — reconnect in %d ms",
+                           msg.data.ble_state,
+                           MOON_COMPANION_RECONNECT_DELAY_MS);
+                furi_timer_start(
+                    moon->reconnect_timer,
+                    furi_ms_to_ticks(MOON_COMPANION_RECONNECT_DELAY_MS));
             }
             break;
         }

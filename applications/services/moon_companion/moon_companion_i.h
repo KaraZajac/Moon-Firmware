@@ -73,4 +73,12 @@ struct MoonCompanion {
     /* Yield */
     bool yielded;
     uint32_t yield_until_tick;
+
+    /* One-shot timer that posts MoonMsgReconnect a few seconds after the
+     * BLE link transitions to Idle/Error, so the service retries scan
+     * without us hammering the radio when the phone is just briefly out
+     * of range. */
+    FuriTimer* reconnect_timer;
 };
+
+#define MOON_COMPANION_RECONNECT_DELAY_MS 5000
