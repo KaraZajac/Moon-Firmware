@@ -118,7 +118,12 @@ bool desktop_scene_lock_menu_on_event(void* context, SceneManagerEvent event) {
             break;
         case DesktopLockMenuEventMoon:
             desktop_scene_lock_menu_save_settings(desktop);
-            loader_start_detached_with_gui_error(desktop->loader, "Moon", NULL);
+            /* The Moon icon on the lock menu used to open moon_app's
+             * three-entry Start scene. Since those categories now live
+             * directly under Settings, the one knob worth a quick-access
+             * shortcut from lock is the Moon Companion pair/status view. */
+            loader_start_detached_with_gui_error(
+                desktop->loader, "Moon Companion", NULL);
             consumed = true;
             break;
         case DesktopLockMenuEventScreenSettings:
