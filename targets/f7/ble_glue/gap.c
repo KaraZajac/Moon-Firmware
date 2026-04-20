@@ -633,6 +633,11 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 bool pair_is_central = gap_is_connection_central(
                     pairing_complete->Connection_Handle);
                 FURI_LOG_I(TAG, "Pairing complete (central=%d)", pair_is_central);
+                /* A new bond just got added to the security DB — refresh the
+                 * controller's resolving list so subsequent RPA rotations
+                 * from this peer are recognized without triggering a fresh
+                 * SMP exchange. */
+                gap_refresh_resolving_list();
                 if(pair_is_central) {
                     /* Notify the central-role listener (e.g. moon_companion)
                      * so it can kick off discovery immediately instead of
@@ -715,6 +720,44 @@ static void set_manufacturer_data(uint8_t* mfg_data, uint8_t mfg_data_len) {
     gap->service.mfg_data[1] = AD_TYPE_MANUFACTURER_SPECIFIC_DATA;
     memcpy(&gap->service.mfg_data[gap->service.mfg_data_len], mfg_data, mfg_data_len);
     gap->service.mfg_data_len += mfg_data_len;
+}
+
+/* Rebuild the controller-side resolving list from the security DB.
+ *
+ * Modern Android phones advertise with a Resolvable Private Address
+ * that rotates every ~15 minutes. Without a resolving list populated
+ * from our bonds, each new RPA looks like a never-before-seen peer;
+ * the stack can't find a matching LTK and SMP runs afresh — which on
+ * the phone side surfaces as a pair prompt even though the bond still
+ * exists under the phone's identity.
+ *
+ * Mode 0x03 clears + re-populates the resolving list only (whitelist
+ * stays untouched). Safe to call both at init (resolution not yet
+ * enabled) and after a fresh pair (resolution enabled; the controller
+ * briefly drops resolution for the rebuild, which is fine — we're not
+ * scanning at that moment either).
+ *
+ * Resolving-list capacity on STM32WB is typically 8; buffer sized to
+ * 16 in case a future copro bumps it. */
+static void gap_refresh_resolving_list(void) {
+    uint8_t num_bonded = 0;
+    Bonded_Device_Entry_t bonded[16];
+    tBleStatus rc = aci_gap_get_bonded_devices(&num_bonded, bonded);
+    if(rc != BLE_STATUS_SUCCESS) {
+        FURI_LOG_W(TAG, "get_bonded_devices: 0x%02X", rc);
+        return;
+    }
+    if(num_bonded == 0) {
+        FURI_LOG_D(TAG, "No bonded peers; resolving list left empty");
+        return;
+    }
+    tBleStatus rc2 = aci_gap_add_devices_to_list(
+        num_bonded, (List_Entry_t*)bonded, 0x03);
+    if(rc2 != BLE_STATUS_SUCCESS) {
+        FURI_LOG_W(TAG, "add_devices_to_list: 0x%02X (n=%u)", rc2, num_bonded);
+    } else {
+        FURI_LOG_I(TAG, "Resolving list populated: %u peer(s)", num_bonded);
+    }
 }
 
 static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
@@ -840,6 +883,18 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
         CFG_IDENTITY_ADDRESS);
     // Configure whitelist
     aci_gap_configure_whitelist();
+
+    /* Populate the controller's resolving list and enable RPA resolution.
+     * See gap_refresh_resolving_list for why. Called once at init with
+     * resolution disabled (fresh boot state), so mode 0x03 (clear +
+     * re-populate resolving list only) is safe. */
+    gap_refresh_resolving_list();
+    tBleStatus rr = hci_le_set_address_resolution_enable(1);
+    if(rr != BLE_STATUS_SUCCESS) {
+        FURI_LOG_W(TAG, "set_address_resolution_enable: 0x%02X", rr);
+    } else {
+        FURI_LOG_I(TAG, "LE address resolution enabled");
+    }
 }
 
 static void gap_advertise_start(GapState new_state) {
