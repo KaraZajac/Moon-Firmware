@@ -385,11 +385,26 @@ bool ble_gatt_client_discover_services(uint16_t connection_handle) {
         return false;
     }
 
+    /* Already in flight — re-issuing the same op clobbers
+     * discovered_services_count and, if it returns 0x0C (the ATT slot is
+     * busy because of the one we just kicked off), used to reset
+     * pending_op back to None, stranding the running procedure's
+     * PROC_COMPLETE with no state. Treat as idempotent success. */
+    if(conn->pending_op == GattOpDiscoverServices) {
+        return true;
+    }
+
     conn->discovered_services_count = 0;
+    GattPendingOp prev_op = conn->pending_op;
     conn->pending_op = GattOpDiscoverServices;
     tBleStatus status = aci_gatt_disc_all_primary_services(connection_handle);
     if(status != BLE_STATUS_SUCCESS) {
-        conn->pending_op = GattOpNone;
+        /* 0x0C (COMMAND_DISALLOWED) means some other ATT procedure is in
+         * flight — often Android's system GATT client walking our
+         * peripheral tree on a fresh pair. Leave any prior pending_op
+         * alone so its PROC_COMPLETE still dispatches correctly; the
+         * caller will retry. */
+        conn->pending_op = prev_op;
         FURI_LOG_E(TAG, "Discover services failed: 0x%02X", status);
     }
     return status == BLE_STATUS_SUCCESS;
@@ -404,12 +419,19 @@ bool ble_gatt_client_discover_characteristics(
         return false;
     }
 
+    /* Idempotent re-issue — see rationale in ble_gatt_client_discover_services. */
+    if(conn->pending_op == GattOpDiscoverChars) {
+        return true;
+    }
+
     conn->discovered_chars_count = 0;
+    GattPendingOp prev_op = conn->pending_op;
     conn->pending_op = GattOpDiscoverChars;
     tBleStatus status = aci_gatt_disc_all_char_of_service(
         connection_handle, service->start_handle, service->end_handle);
     if(status != BLE_STATUS_SUCCESS) {
-        conn->pending_op = GattOpNone;
+        /* Don't clobber a prior in-flight op's pending_op on 0x0C. */
+        conn->pending_op = prev_op;
         FURI_LOG_E(TAG, "Discover chars failed: 0x%02X", status);
     }
     return status == BLE_STATUS_SUCCESS;

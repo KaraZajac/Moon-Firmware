@@ -21,8 +21,12 @@
  * takes 3-5 s; 8 s gives comfortable headroom. The pairing-complete event
  * from gap.c short-circuits this when it arrives. */
 #define MOON_BLE_PAIR_FALLBACK   80
-#define MOON_BLE_DISCOVER_DELAY  5   /* first discover attempt, 500 ms into Discovering */
-#define MOON_BLE_DISCOVER_RETRY  3   /* retry every 3 ticks (300 ms) */
+/* Discovery timing — see the ATT-slot-contention block below. The 5 s
+ * delay lets Android finish its own opportunistic sweep of the Flipper's
+ * peripheral GATT server before we try to claim the ATT slot; retrying
+ * faster just generates 0x0C noise. */
+#define MOON_BLE_DISCOVER_DELAY  50  /* first discover attempt, 5 s into Discovering */
+#define MOON_BLE_DISCOVER_RETRY  10  /* retry once per second if still contended */
 
 /* Background-friendly connection parameters.
  * Flipper is central, so it owns the interval. Default gap_connect() uses
@@ -40,11 +44,14 @@
 #define MOON_BLE_CONN_TIMEOUT   0x0190  /* 4 s */
 /* Android's system-level GATT clients (MCP, CCS, TMAP, HAS, etc.) all kick
  * off opportunistic discovery against the Flipper's peripheral GATT server
- * on every new link. With a single shared ATT slot in the ST stack, our
- * central-side disc_all_primary_services returns 0x0C (COMMAND_DISALLOWED)
- * until that flurry drains. Observed it taking well over 5 s on a modern
- * Pixel; keep retrying for 25 s before declaring the peer unreachable. */
-#define MOON_BLE_DISCOVER_TIMEOUT 250
+ * as soon as the link is up. The STM32WB has one ATT procedure slot per
+ * connection — while Android is walking our peripheral tree, our central-
+ * side disc_primary_service_by_uuid returns 0x0C (COMMAND_DISALLOWED).
+ * Observed Android to take 3-6 s to finish its initial sweep on a modern
+ * phone, so MOON_BLE_DISCOVER_DELAY intentionally waits that out before
+ * the first attempt. Overall timeout covers the slow-peer tail — if we
+ * haven't seen services after 40 s we declare the peer unreachable. */
+#define MOON_BLE_DISCOVER_TIMEOUT 400
 
 /* ── UUID helpers ──────────────────────────────────────────────────────
  *
