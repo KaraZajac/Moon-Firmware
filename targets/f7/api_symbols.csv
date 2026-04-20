@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,89.1,,
+Version,+,89.0,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -1942,7 +1942,6 @@ Function,-,gamma_r,double,"double, int*"
 Function,-,gammaf,float,float
 Function,-,gammaf_r,float,"float, int*"
 Function,+,gap_connect,_Bool,"uint8_t, const uint8_t*"
-Function,+,gap_connect_bonded,_Bool,"uint8_t, const uint8_t*"
 Function,+,gap_disconnect,_Bool,uint16_t
 Function,-,gap_emit_ble_beacon_status_event,void,_Bool
 Function,+,gap_ext_adv_configure,_Bool,"uint8_t, uint16_t, uint32_t, uint32_t, uint8_t, uint8_t"
@@ -1960,7 +1959,6 @@ Function,-,gap_extra_beacon_set_data,_Bool,"const uint8_t*, uint8_t"
 Function,-,gap_extra_beacon_start,_Bool,
 Function,-,gap_extra_beacon_stop,_Bool,
 Function,+,gap_get_activities,uint8_t,
-Function,+,gap_get_bonded_peer,_Bool,"uint8_t[( 6 )], uint8_t*"
 Function,+,gap_get_connection_count,uint8_t,
 Function,+,gap_get_connection_handle,uint16_t,
 Function,+,gap_get_connection_handle_by_role,uint16_t,_Bool

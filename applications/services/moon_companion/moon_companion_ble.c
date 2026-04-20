@@ -280,65 +280,6 @@ bool moon_ble_start_scan(MoonBle* ble) {
     return true;
 }
 
-bool moon_ble_start_reconnect(
-    MoonBle* ble,
-    const uint8_t identity_addr[6],
-    uint8_t identity_addr_type) {
-    furi_check(ble);
-    furi_check(identity_addr);
-    furi_mutex_acquire(ble->mutex, FuriWaitForever);
-    if(ble->state != MoonBleStateIdle && ble->state != MoonBleStateError) {
-        furi_mutex_release(ble->mutex);
-        return false;
-    }
-    ble->scan_target_found = false;
-    ble->services_ready = false;
-    ble->chars_ready = false;
-    ble->write_complete = false;
-    ble->subscribe_complete = false;
-    ble->gatt_error = false;
-    ble->pairing_complete = false;
-    ble->pairing_status = 0;
-    ble->conn_params_loose_applied = false;
-    ble->phase_ticks = 0;
-    furi_mutex_release(ble->mutex);
-
-    /* Free the radio before asking it to scan+connect (same stale-link
-     * cleanup the scan path does — a lingering central link would
-     * cause aci_gap_create_connection to return HCI_COMMAND_DISALLOWED). */
-    if(gap_get_state() == GapStateConnected) {
-        uint16_t h = gap_get_connection_handle_by_role(true);
-        if(h) gap_disconnect(h);
-        for(int i = 0; i < 20; i++) {
-            furi_delay_ms(50);
-            if(gap_get_state() != GapStateConnected) break;
-        }
-    }
-
-    ble_gatt_client_init();
-    gap_set_just_works_pairing();
-    gap_set_central_pairing_complete_callback(moon_ble_on_central_pairing_complete, ble);
-
-    FURI_LOG_I(
-        TAG,
-        "Reconnecting by identity %02X:%02X:%02X:%02X:%02X:%02X (type=%u)",
-        identity_addr[5], identity_addr[4], identity_addr[3],
-        identity_addr[2], identity_addr[1], identity_addr[0],
-        identity_addr_type);
-
-    /* Enter Connecting before calling gap_connect_bonded — the Connected
-     * event can arrive before we return from that call on a warm link. */
-    moon_ble_transition(ble, MoonBleStateConnecting);
-    furi_timer_start(ble->tick_timer, furi_ms_to_ticks(MOON_BLE_TICK_MS));
-
-    if(!gap_connect_bonded(identity_addr_type, identity_addr)) {
-        FURI_LOG_E(TAG, "gap_connect_bonded failed");
-        moon_ble_transition(ble, MoonBleStateError);
-        return false;
-    }
-    return true;
-}
-
 void moon_ble_stop(MoonBle* ble) {
     furi_check(ble);
     furi_timer_stop(ble->tick_timer);

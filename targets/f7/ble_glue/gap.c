@@ -94,7 +94,6 @@ static void gap_advertise_start(GapState new_state);
 static int32_t gap_app(void* context);
 static void gap_scan_timer_callback(void* context);
 static void gap_connect_timer_callback(void* context);
-static void gap_refresh_resolving_list(void);
 
 /* ── Multi-connection helpers ────────────────────────────────────────── */
 
@@ -634,11 +633,6 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                 bool pair_is_central = gap_is_connection_central(
                     pairing_complete->Connection_Handle);
                 FURI_LOG_I(TAG, "Pairing complete (central=%d)", pair_is_central);
-                /* A new bond just got added to the security DB — refresh the
-                 * controller's resolving list so subsequent RPA rotations
-                 * from this peer are recognized without triggering a fresh
-                 * SMP exchange. */
-                gap_refresh_resolving_list();
                 if(pair_is_central) {
                     /* Notify the central-role listener (e.g. moon_companion)
                      * so it can kick off discovery immediately instead of
@@ -721,45 +715,6 @@ static void set_manufacturer_data(uint8_t* mfg_data, uint8_t mfg_data_len) {
     gap->service.mfg_data[1] = AD_TYPE_MANUFACTURER_SPECIFIC_DATA;
     memcpy(&gap->service.mfg_data[gap->service.mfg_data_len], mfg_data, mfg_data_len);
     gap->service.mfg_data_len += mfg_data_len;
-}
-
-/* Rebuild the controller-side resolving list from the security DB.
- *
- * Modern Android phones advertise with a Resolvable Private Address
- * that rotates every ~15 minutes. Without a resolving list populated
- * from our bonds, each new RPA looks like a never-before-seen peer;
- * the stack can't find a matching LTK and SMP runs afresh — which on
- * the phone side surfaces as a pair prompt even though the bond still
- * exists under the phone's identity.
- *
- * Mode 0x01 clears + re-populates the resolving list only (whitelist
- * stays untouched — that's what aci_gap_configure_whitelist did). Safe
- * to call both at init (resolution not yet enabled) and after a fresh
- * pair (resolution enabled; the controller briefly drops resolution
- * for the rebuild, which is fine — we're not scanning at that moment
- * either).
- *
- * Resolving-list capacity on STM32WB is typically 8; buffer sized to
- * 16 in case a future copro bumps it. */
-static void gap_refresh_resolving_list(void) {
-    uint8_t num_bonded = 0;
-    Bonded_Device_Entry_t bonded[16];
-    tBleStatus rc = aci_gap_get_bonded_devices(&num_bonded, bonded);
-    if(rc != BLE_STATUS_SUCCESS) {
-        FURI_LOG_W(TAG, "get_bonded_devices: 0x%02X", rc);
-        return;
-    }
-    if(num_bonded == 0) {
-        FURI_LOG_D(TAG, "No bonded peers; resolving list left empty");
-        return;
-    }
-    tBleStatus rc2 = aci_gap_add_devices_to_list(
-        num_bonded, (List_Entry_t*)bonded, 0x01);
-    if(rc2 != BLE_STATUS_SUCCESS) {
-        FURI_LOG_W(TAG, "add_devices_to_list: 0x%02X (n=%u)", rc2, num_bonded);
-    } else {
-        FURI_LOG_I(TAG, "Resolving list populated: %u peer(s)", num_bonded);
-    }
 }
 
 static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
@@ -885,18 +840,6 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
         CFG_IDENTITY_ADDRESS);
     // Configure whitelist
     aci_gap_configure_whitelist();
-
-    /* Populate the controller's resolving list and enable RPA resolution.
-     * See gap_refresh_resolving_list for why. Called once at init with
-     * resolution disabled (fresh boot state), so mode 0x01 (clear +
-     * re-populate resolving list only) is safe. */
-    gap_refresh_resolving_list();
-    tBleStatus rr = hci_le_set_address_resolution_enable(1);
-    if(rr != BLE_STATUS_SUCCESS) {
-        FURI_LOG_W(TAG, "set_address_resolution_enable: 0x%02X", rr);
-    } else {
-        FURI_LOG_I(TAG, "LE address resolution enabled");
-    }
 }
 
 static void gap_advertise_start(GapState new_state) {
@@ -1309,15 +1252,6 @@ bool gap_start_scanning(const GapScanParams* params) {
     furi_check(gap);
     furi_check(params);
 
-    /* Refresh the resolving list right before the scan starts. gap_init_svc
-     * also tries to populate it, but at that early point the stack hasn't
-     * finished ingesting .bt.keys into its security DB, so aci_gap_get_bonded_devices
-     * returns 0 and the list stays empty until the first successful pair.
-     * By scan time the DB is live, so any bonds loaded from disk land in
-     * the controller's resolving list in time to resolve the peer's RPA
-     * on the very first advertisement we see. */
-    gap_refresh_resolving_list();
-
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
     /* Queue scan start for the gap_app thread which handles the full
@@ -1352,44 +1286,6 @@ void gap_stop_scanning(void) {
 /*
  * Central role connections
  */
-
-bool gap_connect_bonded(uint8_t identity_addr_type, const uint8_t* identity_addr) {
-    furi_check(identity_addr);
-    /* Map the raw identity type (0 = public, 1 = random static) to the
-     * HCI Peer_Address_Type value that tells the controller "this is an
-     * identity; resolve incoming RPAs against it via the resolving list":
-     *   0x00 public           -> 0x02 Public Identity (RPA resolved)
-     *   0x01 random static    -> 0x03 Random Identity (RPA resolved)
-     * Any other value falls through unchanged, which is fine for testing
-     * but shouldn't happen in normal use. */
-    uint8_t resolvable_type;
-    if(identity_addr_type == 0x00) {
-        resolvable_type = 0x02;
-    } else if(identity_addr_type == 0x01) {
-        resolvable_type = 0x03;
-    } else {
-        FURI_LOG_W(
-            TAG, "gap_connect_bonded: unexpected identity type 0x%02X", identity_addr_type);
-        resolvable_type = identity_addr_type;
-    }
-    return gap_connect(resolvable_type, identity_addr);
-}
-
-bool gap_get_bonded_peer(uint8_t addr[GAP_MAC_ADDR_SIZE], uint8_t* addr_type) {
-    furi_check(addr);
-    furi_check(addr_type);
-    uint8_t n = 0;
-    Bonded_Device_Entry_t bonded[16];
-    if(aci_gap_get_bonded_devices(&n, bonded) != BLE_STATUS_SUCCESS || n == 0) {
-        return false;
-    }
-    /* Phase 1 contract: we only ever bond with one phone, so return the
-     * first entry. If that ever changes (multi-phone support), expand
-     * the API to take an index. */
-    memcpy(addr, bonded[0].Address, GAP_MAC_ADDR_SIZE);
-    *addr_type = bonded[0].Address_Type;
-    return true;
-}
 
 bool gap_connect(uint8_t address_type, const uint8_t* address) {
     furi_check(gap);
