@@ -1308,6 +1308,15 @@ bool gap_start_scanning(const GapScanParams* params) {
     furi_check(gap);
     furi_check(params);
 
+    /* Refresh the resolving list right before the scan starts. gap_init_svc
+     * also tries to populate it, but at that early point the stack hasn't
+     * finished ingesting .bt.keys into its security DB, so aci_gap_get_bonded_devices
+     * returns 0 and the list stays empty until the first successful pair.
+     * By scan time the DB is live, so any bonds loaded from disk land in
+     * the controller's resolving list in time to resolve the peer's RPA
+     * on the very first advertisement we see. */
+    gap_refresh_resolving_list();
+
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
 
     /* Queue scan start for the gap_app thread which handles the full
