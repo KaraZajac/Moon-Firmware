@@ -3,9 +3,13 @@ App(
     name="Moon",
     # No longer a main-menu tile — the Interface/Protocols/Misc
     # categories live under Settings now (interface_settings,
-    # protocols_settings, misc_settings apps). Keeping the app built-in
-    # as APP so the Settings-side shims can loader_start("Moon", arg).
-    apptype=FlipperAppType.APP,
+    # protocols_settings, misc_settings apps), and the "Moon" label
+    # has been supplanted by the MoonOS main-menu app. Kept built-in as
+    # SYSTEM so the Settings-side shims can still loader_start("Moon",
+    # arg) for sub-screen jumps — SYSTEM apps are launchable by name
+    # but do not appear in the default main-menu tile list (unlike APP
+    # which populated FLIPPER_APPS and rendered a tile).
+    apptype=FlipperAppType.SYSTEM,
     entry_point="moon_app",
     stack_size=2 * 1024,
     flags=["InsomniaSafe"],

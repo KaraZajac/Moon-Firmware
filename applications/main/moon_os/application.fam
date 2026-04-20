@@ -4,10 +4,19 @@ App(
     apptype=FlipperAppType.MENUEXTERNAL,
     entry_point="moon_os_app",
     stack_size=2 * 1024,
+    fap_category="Tools",
+    fap_version="0.1",
+    fap_description="Front door for Moon: pair/status, FAP catalog, dashboard.",
+    fap_author="Moon-OS",
+    icon="A_Moon_14",
     requires=[
         "gui",
         "moon_companion",
     ],
-    icon="A_Moon_14",
-    fap_category="assets",
+    sources=[
+        "moon_os_app.c",
+        "scenes/moon_os_scene.c",
+        "scenes/moon_os_scene_start.c",
+        "scenes/moon_os_scene_pair.c",
+    ],
 )
