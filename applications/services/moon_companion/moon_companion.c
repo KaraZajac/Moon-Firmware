@@ -702,8 +702,18 @@ int32_t moon_companion_srv(void* p) {
     FURI_LOG_I(TAG, "Service started (paired=%d)", moon->persist.paired);
 
     if(moon->persist.paired) {
-        FURI_LOG_I(TAG, "Auto-reconnect: paired phone known, scanning");
-        moon_ble_start_scan(moon->ble);
+        /* Arm the reconnect timer rather than calling moon_ble_start_scan
+         * directly here. gap_start_scanning() blocks on gap_app's command
+         * queue with a 5 s `furi_check`-wrapped timeout; if we race ahead
+         * of bt_service bringing gap_app up (which happens on the very
+         * first boot after a successful pair — the auto-scan path is
+         * otherwise untouched), the semaphore never releases and we
+         * panic the whole system. The reconnect tick fires on its own
+         * timer thread after bt_service is definitely settled. */
+        FURI_LOG_I(TAG, "Auto-reconnect armed (paired phone known)");
+        furi_timer_start(
+            moon->reconnect_timer,
+            furi_ms_to_ticks(MOON_COMPANION_RECONNECT_DELAY_MS));
     }
 
     for(;;) {
