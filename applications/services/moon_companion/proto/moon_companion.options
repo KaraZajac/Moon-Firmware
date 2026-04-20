@@ -1,8 +1,9 @@
 # nanopb size constraints for moon_companion.proto
 #
-# Everything must fit in a single GATT notification (up to 244 bytes on a
-# 247-byte MTU link). HTTP response bodies over ~4 KB travel on an L2CAP
-# CoC side-channel; everything else is inline.
+# Every message must fit in a single GATT notification (~244 bytes on a
+# 247-byte MTU link). We don't currently do multi-notification
+# reassembly, so the caps here matter — if the encoded envelope exceeds
+# 244 bytes, moon_ble_send rejects it and the RPC fails.
 
 # ── Envelopes ──────────────────────────────────────────────────────────
 *MoonRequest.auth_token       max_size:16
@@ -21,23 +22,16 @@
 *SendNotificationRequest.body   max_size:160
 *SendNotificationRequest.tag    max_size:32
 
-# ── Bulk transfer side-channel ────────────────────────────────────────
-*OpenBulkChannelRequest.name         max_size:64
-*OpenBulkChannelResponse.session_id  max_size:8
-*CloseBulkChannelRequest.session_id  max_size:8
-
 # ── HTTP proxy ────────────────────────────────────────────────────────
-# Request: headers capped so an envelope fits in a handful of GATT
-# notifications. Body capped at 2 KB inline — anything larger means the
-# caller should restructure or use a streaming POST (not yet supported).
-# Response: body inline cap 4 KB; above this the phone signals bulk and
-# streams over CoC.
+# Keep caps tight — every HttpRequest/HttpResponse envelope must clear a
+# single GATT notification. Typical requests fit easily; a worst-case
+# request with 8 headers + 512 B body + 128 B URL + auth_token + envelope
+# is already uncomfortably close to 244 B.
 *HttpRequest.method           max_size:8
-*HttpRequest.url              max_size:256
-*HttpRequest.headers          max_count:8
-*HttpRequest.body             max_size:2048
-*HttpHeader.key               max_size:48
-*HttpHeader.value             max_size:192
-*HttpResponse.headers         max_count:8
-*HttpResponse.body            max_size:4096
-*HttpResponse.session_id      max_size:8
+*HttpRequest.url              max_size:128
+*HttpRequest.headers          max_count:4
+*HttpRequest.body             max_size:256
+*HttpHeader.key               max_size:32
+*HttpHeader.value             max_size:96
+*HttpResponse.headers         max_count:4
+*HttpResponse.body            max_size:150

@@ -4,7 +4,6 @@ enum StartIndex {
     StartIndexStatus,
     StartIndexPair,
     StartIndexForget,
-    StartIndexBulkTest,
 };
 
 static const char* connection_state_text(MoonConnectionState s) {
@@ -29,10 +28,6 @@ static void on_enter_cb(void* context, uint32_t index) {
         view_dispatcher_send_custom_event(
             app->view_dispatcher, MoonCompSettingsEventForget);
         break;
-    case StartIndexBulkTest:
-        view_dispatcher_send_custom_event(
-            app->view_dispatcher, MoonCompSettingsEventBulkTest);
-        break;
     default:
         break;
     }
@@ -53,7 +48,6 @@ void moon_companion_settings_scene_start_on_enter(void* context) {
         list, moon_companion_is_paired(app->moon) ? "Re-pair Phone" : "Pair Phone",
         1, NULL, NULL);
     variable_item_list_add(list, "Forget Phone", 1, NULL, NULL);
-    variable_item_list_add(list, "Run CoC Echo Test", 1, NULL, NULL);
 
     variable_item_list_set_enter_callback(list, on_enter_cb, app);
 
@@ -73,10 +67,6 @@ bool moon_companion_settings_scene_start_on_event(void* context, SceneManagerEve
         /* Rebuild the list so "Pair Phone" label flips back. */
         variable_item_list_reset(app->var_item_list);
         moon_companion_settings_scene_start_on_enter(app);
-        return true;
-    }
-    if(event.event == MoonCompSettingsEventBulkTest) {
-        scene_manager_next_scene(app->scene_manager, MoonCompSettingsSceneBulkTest);
         return true;
     }
     return false;

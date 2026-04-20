@@ -20,11 +20,15 @@ option java_multiple_files = true;
  * matching request — used for streaming subscriptions (GPS updates,
  * phone status changes).
  *
- * All envelopes fit comfortably inside the default ATT MTU once the
- * connection negotiates ≥ 247 bytes. Larger payloads (HTTP response
- * bodies over ~4 KB, FAP / firmware binaries) travel on a side-channel
- * L2CAP CoC — the RPC response carries the SPSM + session_id handshake
- * and the bytes flow out-of-band.
+ * All envelopes fit inside a single GATT notification — after the BLE
+ * link negotiates MTU (≥ 247 B typical) the ~244 B of usable payload
+ * comfortably holds every message the proto defines today. We do not
+ * currently support multi-notification reassembly; payloads that would
+ * exceed a single notification must be trimmed (e.g. shorter URL, fewer
+ * headers) rather than chunked. File-transfer use cases (app-store .fap
+ * downloads, HTTP responses bigger than ~4 KB) are explicitly out of
+ * scope until we either bring in GATT-chunked reassembly or switch to a
+ * radio stack variant that supports L2CAP CoC.
  */
 
 // ── Envelopes ──────────────────────────────────────────────────────────
@@ -44,17 +48,11 @@ message MoonRequest {
         GetTimeRequest             get_time             = 20;
         SendNotificationRequest    send_notification    = 30;
 
-        // Bulk transfer side-channel handshake (CoC dial target). The
-        // RPC channel itself stays on GATT notifications; these verbs
-        // tell the Flipper which L2CAP CoC PSM the phone is listening
-        // on for a specific transfer intent.
-        OpenBulkChannelRequest     open_bulk_channel    = 40;
-        CloseBulkChannelRequest    close_bulk_channel   = 41;
-
         // Generic HTTP proxy. Phone terminates TLS. Any method, any URL,
-        // any headers. Small responses (≤ 4 KB) come back inline in the
-        // MoonResponse; larger responses stream over L2CAP CoC via the
-        // SPSM + session_id fields of HttpResponse.
+        // any headers. Response body is inline in the MoonResponse and
+        // is capped small enough to fit in a single GATT notification;
+        // larger payloads return MOON_NOT_AVAILABLE until we grow a
+        // real bulk-transport.
         HttpRequest                http                 = 50;
     }
 
@@ -62,13 +60,13 @@ message MoonRequest {
     // emerges — noproto-style SocketConnect/Send/Recv/Close/StateChanged.
     reserved 60 to 69;
 
-    // Historical Tier 2 verbs removed in proto v2 — kept reserved so an
-    // old client can't silently mean something new.
-    //   100 = list_app_updates  101 = download_app   110 = check_firmware
-    //   200 = http_get          201 = http_post
-    // App-store/updater semantics now live in FAPs that use the generic
-    // http verb against a catalog server.
-    reserved 100, 101, 110, 200, 201;
+    // Historical verbs removed in earlier proto revisions — kept reserved
+    // so an old client can't silently mean something new.
+    //   40 = open_bulk_channel   41 = close_bulk_channel (L2CAP CoC; not
+    //                                supported by our BLE stack variant)
+    //   100 = list_app_updates   101 = download_app   110 = check_firmware
+    //   200 = http_get           201 = http_post
+    reserved 40, 41, 100, 101, 110, 200, 201;
 }
 
 message MoonResponse {
@@ -80,17 +78,18 @@ message MoonResponse {
         PositionData            position          = 10;
         TimeData                time              = 20;
         NotificationAck         notification      = 30;
-        OpenBulkChannelResponse open_bulk_channel = 40;
         HttpResponse            http              = 50;
         StatusAck               ack               = 255;
     }
 
+    reserved 40;          // previously open_bulk_channel
     reserved 60 to 69;
     reserved 100, 110, 200;
 }
 
 // Phone-initiated push. No request_id; phone emits these on its own
-// schedule (e.g. once per second for a position subscription).
+// schedule (e.g. once per second for a position subscription, every
+// ~30 s for phone_status as an app-level keep-alive).
 message MoonEvent {
     oneof event {
         PositionData position_update = 1;
@@ -131,7 +130,7 @@ enum MoonStatus {
     MOON_UNSUPPORTED_VERSION = 2;
     MOON_UNSUPPORTED_REQUEST = 3;   // phone doesn't implement this yet
     MOON_INTERNAL_ERROR      = 4;
-    MOON_NOT_AVAILABLE       = 5;   // e.g., GPS not fixed, no network
+    MOON_NOT_AVAILABLE       = 5;   // e.g., GPS not fixed, no network, response too big for inline
     MOON_RATE_LIMITED        = 6;
 }
 
@@ -211,57 +210,18 @@ message PhoneStatus {
     bool   has_network = 3;
 }
 
-// ── Bulk transfer side-channel ─────────────────────────────────────────
-//
-// The phone keeps an L2CAP CoC server socket open on a dynamically
-// allocated SPSM. When the Flipper wants to move bulk data it sends an
-// OpenBulkChannelRequest over GATT; the phone replies with the SPSM and
-// expected byte count; the Flipper then dials a CoC connection to that
-// SPSM and the bytes flow directly over the L2CAP channel rather than
-// chunking through GATT notifications.
-//
-// BULK_ECHO_TEST is the bring-up fixture: the phone streams a
-// deterministic byte pattern so the Flipper can verify the channel end
-// to end without any real content source involved.
-//
-// BULK_HTTP_RESPONSE is used internally by the HttpRequest flow when the
-// response body exceeds the inline cap (~4 KB). The Flipper's HTTP C API
-// opens this transparently — FAP authors don't touch it directly.
-
-enum BulkKind {
-    BULK_UNSPECIFIED        = 0;
-    BULK_DOWNLOAD_FAP       = 1;   // phone → Flipper, .fap binary
-    BULK_UPLOAD_FILE        = 2;   // Flipper → phone, capture/dump
-    BULK_FIRMWARE_UPDATE    = 3;   // phone → Flipper, .dfu image
-    BULK_ECHO_TEST          = 4;   // phone → Flipper, bring-up fixture
-    BULK_HTTP_RESPONSE      = 5;   // phone → Flipper, large HTTP response body
-}
-
-message OpenBulkChannelRequest {
-    BulkKind kind = 1;
-    string   name = 2;   // intent-specific id: appid, filename, etc.
-}
-
-message OpenBulkChannelResponse {
-    uint32 spsm          = 1;   // L2CAP PSM for the Flipper to dial (0x80–0xFF)
-    uint32 total_bytes   = 2;   // expected transfer size; 0 = unknown / streaming
-    bytes  session_id    = 3;   // 8 bytes; correlates CoC activity to this open
-}
-
-message CloseBulkChannelRequest {
-    bytes session_id = 1;
-}
-
 // ── HTTP proxy ─────────────────────────────────────────────────────────
 //
 // Any FAP can issue an HTTP(S) request through the paired phone. The
 // phone terminates TLS using the system trust store. No per-FAP auth
 // gate — the BLE pairing is the trust boundary.
 //
-// Small responses (body ≤ 4 KB, headers ≤ ~1 KB) fit inline in
-// HttpResponse. For larger responses the phone signals `use_bulk` by
-// setting `bulk_bytes > 0` and `spsm > 0`, and the Flipper opens an
-// L2CAP CoC to the returned SPSM to stream the body.
+// v1 is inline-only: the entire HttpResponse envelope (status + headers +
+// body) must fit in a single GATT notification (~244 B usable after
+// envelope overhead). Bigger responses come back as MOON_NOT_AVAILABLE.
+// When we add GATT-chunked reassembly (or, later, a radio-stack variant
+// that supports L2CAP CoC) the proto will grow response fields to carry
+// the streamed transport hints.
 
 message HttpRequest {
     string method     = 1;   // GET | POST | PUT | DELETE | PATCH | HEAD
@@ -269,7 +229,7 @@ message HttpRequest {
     repeated HttpHeader headers = 3;
     bytes  body       = 4;
     uint32 timeout_ms = 5;   // phone enforces; 0 = phone default (30 s)
-    bool   use_bulk   = 6;   // hint: caller expects large body, prefer CoC
+    reserved 6;              // previously use_bulk (L2CAP CoC hint)
 }
 
 message HttpHeader {
@@ -280,8 +240,6 @@ message HttpHeader {
 message HttpResponse {
     uint32 status_code = 1;
     repeated HttpHeader headers = 2;
-    bytes  body        = 3;   // empty when bulk_bytes > 0
-    uint64 bulk_bytes  = 4;   // nonzero → body streams on CoC, not inline
-    uint32 spsm        = 5;   // L2CAP SPSM to dial when bulk_bytes > 0
-    bytes  session_id  = 6;   // 8 bytes; correlates CoC to this response
+    bytes  body        = 3;
+    reserved 4, 5, 6;  // previously bulk_bytes, spsm, session_id (L2CAP CoC)
 }

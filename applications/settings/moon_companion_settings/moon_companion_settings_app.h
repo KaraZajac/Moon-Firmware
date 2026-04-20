@@ -22,8 +22,6 @@ typedef enum {
     MoonCompSettingsEventPair,
     MoonCompSettingsEventForget,
     MoonCompSettingsEventPairDone,
-    MoonCompSettingsEventBulkTest,
-    MoonCompSettingsEventBulkTestDone,
 } MoonCompSettingsCustomEvent;
 
 typedef struct {
@@ -38,11 +36,4 @@ typedef struct {
 
     char pin[7];
     FuriTimer* poll_timer; /* polls moon_companion_get_state on the pair popup */
-
-    /* Bulk-test scene state (populated while the CoC echo test runs). */
-    FuriThread* bulk_test_thread;
-    uint32_t bulk_test_bytes;
-    uint16_t bulk_test_error;
-    bool bulk_test_success;
-    bool bulk_test_pattern_ok; /* byte[i] == (i & 0xFF) for the echo fixture */
 } MoonCompSettingsApp;

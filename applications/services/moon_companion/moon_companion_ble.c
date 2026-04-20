@@ -7,7 +7,6 @@
 
 #include <gap.h>
 #include <furi_ble/gatt_client.h>
-#include <furi_ble/l2cap_coc.h>
 #include <ble/ble.h>
 
 #define TAG "MoonBle"
@@ -249,12 +248,6 @@ bool moon_ble_start_scan(MoonBle* ble) {
     }
 
     ble_gatt_client_init();
-    /* L2CAP CoC subsystem lives on the same event dispatcher as the
-     * GATT client — lazy-init here (rather than at moon_companion
-     * service boot) for the same boot-ordering reason: the dispatcher
-     * isn't ready until gap_init() has run inside bt_srv. By the time
-     * the user or auto-reconnect starts a scan, BT is fully up. */
-    ble_l2cap_coc_init();
     /* Configure Just-Works pairing + bonding. Without this, macOS Core
      * Bluetooth refuses to expose custom services to an unpaired central
      * — service discovery returns ATT 0x0A (Attribute Not Found) for

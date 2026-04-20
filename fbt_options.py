@@ -59,6 +59,12 @@ COPRO_CUBE_VERSION = "1.20.0"
 COPRO_CUBE_DIR = "lib/stm32wb_copro"
 
 # BLE Full stack — central/scanning, GATT client, 8 connections.
+# Note: ST's "full" stack is actually a modified Basic variant (labelled
+# "BF = Basic Features" in their release notes) with PHY 2 Mb and
+# additional-beacon re-added. It does NOT include L2CAP
+# Connection-Oriented Channels or Extended Advertising — those only ship
+# in "full_extended_fw.bin", which we avoid because extended advertising
+# caused boot-loops for us in past testing.
 COPRO_STACK_BIN = "stm32wb5x_BLE_Stack_full_fw.bin"
 COPRO_STACK_TYPE = "ble_full"
 

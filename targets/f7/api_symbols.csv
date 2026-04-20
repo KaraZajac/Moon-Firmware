@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,88.1,,
+Version,+,89.0,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -2393,7 +2393,6 @@ Function,+,modf,double,"double, double*"
 Function,-,modff,float,"float, float*"
 Function,-,modfl,long double,"long double, long double*"
 Function,+,moon_companion_begin_pairing,_Bool,"MoonCompanion*, char[7]"
-Function,+,moon_companion_bulk_open_blocking,_Bool,"MoonCompanion*, MoonBulkKind, const char*, uint32_t, MoonBulkDataCallback, void*, uint32_t*, uint16_t*"
 Function,+,moon_companion_cancel_pairing,void,MoonCompanion*
 Function,+,moon_companion_forget,void,MoonCompanion*
 Function,+,moon_companion_get_position,_Bool,"MoonCompanion*, MoonPosition*, uint32_t"
