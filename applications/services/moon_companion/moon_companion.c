@@ -117,7 +117,10 @@ static bool moon_companion_encode_and_send(
         FURI_LOG_E(TAG, "pb_encode failed: %s", PB_GET_ERROR(&stream));
         return false;
     }
-    return moon_ble_send(moon->ble, buf, stream.bytes_written);
+    FURI_LOG_I(TAG, "encode_and_send: %u bytes → moon_ble_send", (unsigned)stream.bytes_written);
+    bool ok = moon_ble_send(moon->ble, buf, stream.bytes_written);
+    FURI_LOG_I(TAG, "encode_and_send: moon_ble_send returned %d", ok);
+    return ok;
 }
 
 /* Claim a slot and allocate an event flag. Returns NULL if the table is
@@ -596,11 +599,13 @@ static void moon_companion_on_pair_connected(MoonCompanion* moon) {
     strncpy(req.payload.pair.flipper_name, "Moon Flipper",
             sizeof(req.payload.pair.flipper_name) - 1);
 
+    FURI_LOG_I(TAG, "  - req built (rid=%lu)", (unsigned long)req.request_id);
     MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, req.request_id);
     if(!slot) {
         FURI_LOG_E(TAG, "RPC table full, cannot pair");
         return;
     }
+    FURI_LOG_I(TAG, "  - slot allocated");
 
     if(!moon_companion_encode_and_send(moon, &req)) {
         FURI_LOG_E(TAG, "Failed to send pair request");
