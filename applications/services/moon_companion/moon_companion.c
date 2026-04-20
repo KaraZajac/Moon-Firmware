@@ -116,9 +116,28 @@ static bool moon_companion_encode_and_send(
         FURI_LOG_E(TAG, "pb_encode failed: %s", PB_GET_ERROR(&stream));
         return false;
     }
-    FURI_LOG_I(TAG, "encode_and_send: %u bytes → moon_ble_send", (unsigned)stream.bytes_written);
-    bool ok = moon_ble_send(moon->ble, buf, stream.bytes_written);
-    FURI_LOG_I(TAG, "encode_and_send: moon_ble_send returned %d", ok);
+
+    /* aci_gatt_write_char_value can return 0x0C (COMMAND_DISALLOWED) if
+     * the STM32WB's ATT engine is still processing a prior write's Write
+     * Response, or contending with Android-initiated reads against our
+     * peripheral surface. Retry with short backoff before giving up —
+     * the transient window is typically <100 ms. */
+    const uint32_t delays_ms[] = {0, 50, 150, 400};
+    bool ok = false;
+    for(size_t i = 0; i < sizeof(delays_ms) / sizeof(delays_ms[0]); i++) {
+        if(delays_ms[i]) furi_delay_ms(delays_ms[i]);
+        ok = moon_ble_send(moon->ble, buf, stream.bytes_written);
+        if(ok) break;
+        FURI_LOG_W(TAG,
+                   "moon_ble_send attempt %zu failed (%u bytes) — retrying",
+                   i + 1,
+                   (unsigned)stream.bytes_written);
+    }
+    if(!ok) {
+        FURI_LOG_E(TAG,
+                   "encode_and_send: all %zu retries of moon_ble_send failed",
+                   sizeof(delays_ms) / sizeof(delays_ms[0]));
+    }
     return ok;
 }
 
