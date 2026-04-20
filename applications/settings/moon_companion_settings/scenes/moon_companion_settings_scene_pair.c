@@ -9,27 +9,33 @@ static void update_popup(MoonCompSettingsApp* app, MoonConnectionState state) {
     /* Just-Works pairing: no PIN is exchanged. Keep the header stable
      * instead of flashing a decorative 6-digit placeholder the user can't
      * do anything with. */
-    (void)app;
-    const char* header = "Pairing";
+    const bool reconnect = moon_companion_is_paired(app->moon);
+    const char* header = reconnect ? "Reconnecting" : "Pairing";
     char body[96];
 
     switch(state) {
     case MoonConnStateConnected:
         snprintf(body, sizeof(body),
-            moon_companion_is_paired(app->moon) ? "Paired!\nPress back to return." :
+            reconnect ? "Connected\nPress back to return." :
             "Connected\nWaiting for phone...");
         break;
     case MoonConnStateConnecting:
-        snprintf(body, sizeof(body), "Connecting...\nApprove pair on phone.");
+        snprintf(body, sizeof(body),
+            reconnect ? "Connecting...\nUsing stored pairing." :
+            "Connecting...\nApprove pair on phone.");
         break;
     case MoonConnStateScanning:
-        snprintf(body, sizeof(body), "Scanning for phone\nwith pair mode on.");
+        snprintf(body, sizeof(body),
+            reconnect ? "Searching for\nyour paired phone." :
+            "Scanning for phone\nwith pair mode on.");
         break;
     case MoonConnStateYielded:
         snprintf(body, sizeof(body), "Radio yielded\nto another app.");
         break;
     default:
-        snprintf(body, sizeof(body), "Start pair mode\non the phone.");
+        snprintf(body, sizeof(body),
+            reconnect ? "Waiting to reconnect..." :
+            "Start pair mode\non the phone.");
         break;
     }
     popup_set_header(app->popup, header, 64, 10, AlignCenter, AlignTop);

@@ -747,11 +747,20 @@ int32_t moon_companion_srv(void* p) {
             return 0;
 
         case MoonMsgBeginPairing:
-            FURI_LOG_I(TAG, "Begin pairing (PIN %s)", moon->pairing_pin);
+            FURI_LOG_I(TAG, "Begin pairing (PIN %s) paired=%d",
+                       moon->pairing_pin, moon->persist.paired);
             moon->pairing_active = true;
-            /* Drop any existing pairing — user asked for a fresh one. */
-            memset(&moon->persist, 0, sizeof(moon->persist));
-            moon_companion_save(moon);
+            /* Only wipe persist for a fresh pair. If we already have a
+             * bond + auth_token (from /int/.moon_companion.settings and
+             * the BT stack's .bt.keys), keep them — the user probably
+             * tapped "Re-pair Phone" just to trigger a reconnect.
+             * on_ble_state_changed will route us through the authed path
+             * instead of sending a new PairRequest. Explicit wipes only
+             * happen via MoonMsgForget. */
+            if(!moon->persist.paired) {
+                memset(&moon->persist, 0, sizeof(moon->persist));
+                moon_companion_save(moon);
+            }
             moon_ble_start_scan(moon->ble);
             break;
 
@@ -839,9 +848,20 @@ int32_t moon_companion_srv(void* p) {
                            "BLE Connected: pairing_active=%d paired=%d",
                            moon->pairing_active,
                            moon->persist.paired);
-                if(moon->pairing_active) {
+                /* Pairing intent + existing bond = the user hit "Re-pair"
+                 * on a phone we already know. Skip PairRequest entirely and
+                 * take the authed path so reconnects stay silent. Clear
+                 * pairing_active so the pair scene's is_paired() poll lets
+                 * it close normally. */
+                if(moon->pairing_active && !moon->persist.paired) {
                     moon_companion_on_pair_connected(moon);
                 } else if(moon->persist.paired) {
+                    if(moon->pairing_active) {
+                        FURI_LOG_I(TAG,
+                                   "Re-pair with bonded phone — skipping "
+                                   "PairRequest, using stored token");
+                        moon->pairing_active = false;
+                    }
                     moon_companion_on_authed_connected(moon);
                 }
             } else if(
