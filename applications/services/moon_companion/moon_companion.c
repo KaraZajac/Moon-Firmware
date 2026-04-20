@@ -378,15 +378,22 @@ bool moon_companion_http_request(
         return false;
     }
 
-    /* Build MoonRequest{http}. */
-    moon_companion_v1_MoonRequest pbreq = moon_companion_v1_MoonRequest_init_zero;
-    pbreq.request_id = moon_companion_next_rid(moon);
-    pbreq.auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
-    memcpy(pbreq.auth_token.bytes, moon->persist.auth_token,
+    /* Build MoonRequest{http} on the heap — sizeof(MoonRequest) is ~4.3 KB
+     * thanks to HttpRequest in the oneof union, way more than any FAP's
+     * stack wants to spend. */
+    moon_companion_v1_MoonRequest* pbreq = malloc(sizeof(*pbreq));
+    if(!pbreq) {
+        FURI_LOG_E(TAG, "http_request: MoonRequest alloc failed");
+        return false;
+    }
+    memset(pbreq, 0, sizeof(*pbreq));
+    pbreq->request_id = moon_companion_next_rid(moon);
+    pbreq->auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
+    memcpy(pbreq->auth_token.bytes, moon->persist.auth_token,
            MOON_COMPANION_AUTH_TOKEN_SIZE);
-    pbreq.which_payload = moon_companion_v1_MoonRequest_http_tag;
+    pbreq->which_payload = moon_companion_v1_MoonRequest_http_tag;
 
-    moon_companion_v1_HttpRequest* h = &pbreq.payload.http;
+    moon_companion_v1_HttpRequest* h = &pbreq->payload.http;
     strncpy(h->method, req->method ? req->method : "GET", sizeof(h->method) - 1);
     strncpy(h->url, req->url, sizeof(h->url) - 1);
     h->timeout_ms = req->timeout_ms;
@@ -418,20 +425,23 @@ bool moon_companion_http_request(
     }
 
     /* Begin RPC slot. */
-    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, pbreq.request_id);
+    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, pbreq->request_id);
     if(!slot) {
         FURI_LOG_E(TAG, "http_request: RPC table full");
+        free(pbreq);
         return false;
     }
 
-    if(!moon_companion_encode_and_send(moon, &pbreq)) {
+    if(!moon_companion_encode_and_send(moon, pbreq)) {
         /* pb_encode may have rejected the envelope as too large for a
          * single GATT notification; the FAP's URL + headers + body is
          * over budget. */
         FURI_LOG_E(TAG, "http_request: encode/send failed (envelope too large?)");
         moon_companion_finish_rpc(moon, slot);
+        free(pbreq);
         return false;
     }
+    free(pbreq);
 
     /* Wait for response. Phone side has its own timeout; we allow a bit
      * of headroom here. */
@@ -570,14 +580,23 @@ void moon_companion_resume(MoonCompanion* moon) {
  * SubscribePositionRequest so the phone starts streaming PositionData
  * events that will keep last_position warm. */
 static void moon_companion_on_authed_connected(MoonCompanion* moon) {
-    moon_companion_v1_MoonRequest req = moon_companion_v1_MoonRequest_init_zero;
-    req.request_id = moon_companion_next_rid(moon);
-    req.auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
-    memcpy(req.auth_token.bytes, moon->persist.auth_token, MOON_COMPANION_AUTH_TOKEN_SIZE);
-    req.which_payload = moon_companion_v1_MoonRequest_subscribe_position_tag;
-    req.payload.subscribe_position.interval_ms = 2000;
+    /* Heap-allocate — MoonRequest is too large for a 4 KB service stack
+     * (HttpRequest oneof variant dominates the union at ~4.3 KB). */
+    moon_companion_v1_MoonRequest* req = malloc(sizeof(*req));
+    if(!req) {
+        FURI_LOG_E(TAG, "alloc MoonRequest failed");
+        return;
+    }
+    memset(req, 0, sizeof(*req));
+    req->request_id = moon_companion_next_rid(moon);
+    req->auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
+    memcpy(req->auth_token.bytes, moon->persist.auth_token, MOON_COMPANION_AUTH_TOKEN_SIZE);
+    req->which_payload = moon_companion_v1_MoonRequest_subscribe_position_tag;
+    req->payload.subscribe_position.interval_ms = 2000;
 
-    if(!moon_companion_encode_and_send(moon, &req)) {
+    bool ok = moon_companion_encode_and_send(moon, req);
+    free(req);
+    if(!ok) {
         FURI_LOG_E(TAG, "SubscribePosition failed to send");
         return;
     }
@@ -591,30 +610,40 @@ static void moon_companion_on_authed_connected(MoonCompanion* moon) {
  * to land in the RPC dispatch. */
 static void moon_companion_on_pair_connected(MoonCompanion* moon) {
     FURI_LOG_I(TAG, "on_pair_connected: sending PairRequest");
-    moon_companion_v1_MoonRequest req = moon_companion_v1_MoonRequest_init_zero;
-    req.request_id = moon_companion_next_rid(moon);
+    /* MoonRequest is ~4.3 KB because of the HttpRequest variant in the
+     * oneof union. Stack-allocating it blows the service thread's 4 KB
+     * stack; heap is mandatory here. */
+    moon_companion_v1_MoonRequest* req = malloc(sizeof(*req));
+    if(!req) {
+        FURI_LOG_E(TAG, "alloc MoonRequest failed");
+        return;
+    }
+    memset(req, 0, sizeof(*req));
+    req->request_id = moon_companion_next_rid(moon);
     /* No auth_token yet — phone must accept unpaired peers only while
      * it's in its own pair mode. */
-    req.which_payload = moon_companion_v1_MoonRequest_pair_tag;
-    strncpy(req.payload.pair.flipper_name, "Moon Flipper",
-            sizeof(req.payload.pair.flipper_name) - 1);
+    req->which_payload = moon_companion_v1_MoonRequest_pair_tag;
+    strncpy(req->payload.pair.flipper_name, "Moon Flipper",
+            sizeof(req->payload.pair.flipper_name) - 1);
 
-    FURI_LOG_I(TAG, "  - req built (rid=%lu)", (unsigned long)req.request_id);
-    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, req.request_id);
+    uint32_t rid = req->request_id;
+    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, rid);
     if(!slot) {
         FURI_LOG_E(TAG, "RPC table full, cannot pair");
+        free(req);
         return;
     }
-    FURI_LOG_I(TAG, "  - slot allocated");
 
-    if(!moon_companion_encode_and_send(moon, &req)) {
+    if(!moon_companion_encode_and_send(moon, req)) {
         FURI_LOG_E(TAG, "Failed to send pair request");
         moon_companion_finish_rpc(moon, slot);
+        free(req);
         return;
     }
+    free(req);
 
     FURI_LOG_I(TAG, "on_pair_connected: PairRequest sent (rid=%lu), awaiting response",
-               (unsigned long)req.request_id);
+               (unsigned long)rid);
     /* Block briefly on the RPC response. Real deployments should decouple
      * this from the service thread — for Phase 1a we just wait. */
     uint32_t flags = furi_event_flag_wait(
@@ -804,28 +833,37 @@ bool moon_companion_bulk_open_blocking(
     bool success = false;
     uint16_t err = 0xFFFF;
 
-    /* Step 1: send OpenBulkChannelRequest and wait for the response. */
-    moon_companion_v1_MoonRequest req = moon_companion_v1_MoonRequest_init_zero;
-    req.request_id = moon_companion_next_rid(moon);
-    req.auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
-    memcpy(req.auth_token.bytes, moon->persist.auth_token, MOON_COMPANION_AUTH_TOKEN_SIZE);
-    req.which_payload = moon_companion_v1_MoonRequest_open_bulk_channel_tag;
-    req.payload.open_bulk_channel.kind = (moon_companion_v1_BulkKind)kind;
+    /* Step 1: send OpenBulkChannelRequest and wait for the response.
+     * Heap-alloc the request — stack can't hold a ~4.3 KB MoonRequest. */
+    moon_companion_v1_MoonRequest* req = malloc(sizeof(*req));
+    if(!req) {
+        FURI_LOG_E(TAG, "alloc MoonRequest failed (bulk)");
+        goto cleanup;
+    }
+    memset(req, 0, sizeof(*req));
+    req->request_id = moon_companion_next_rid(moon);
+    req->auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
+    memcpy(req->auth_token.bytes, moon->persist.auth_token, MOON_COMPANION_AUTH_TOKEN_SIZE);
+    req->which_payload = moon_companion_v1_MoonRequest_open_bulk_channel_tag;
+    req->payload.open_bulk_channel.kind = (moon_companion_v1_BulkKind)kind;
     if(name) {
-        strncpy(req.payload.open_bulk_channel.name, name,
-                sizeof(req.payload.open_bulk_channel.name) - 1);
+        strncpy(req->payload.open_bulk_channel.name, name,
+                sizeof(req->payload.open_bulk_channel.name) - 1);
     }
 
-    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, req.request_id);
+    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, req->request_id);
     if(!slot) {
         FURI_LOG_E(TAG, "RPC table full for OpenBulkChannel");
+        free(req);
         goto cleanup;
     }
-    if(!moon_companion_encode_and_send(moon, &req)) {
+    if(!moon_companion_encode_and_send(moon, req)) {
         FURI_LOG_E(TAG, "Failed to send OpenBulkChannelRequest");
         moon_companion_finish_rpc(moon, slot);
+        free(req);
         goto cleanup;
     }
+    free(req);
 
     uint32_t flags = furi_event_flag_wait(
         slot->done, 0x1, FuriFlagWaitAny, MOON_COMPANION_RPC_TIMEOUT_MS);

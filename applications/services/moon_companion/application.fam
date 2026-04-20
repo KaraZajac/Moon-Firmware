@@ -10,7 +10,13 @@ App(
         "gui",
         "notification",
     ],
-    stack_size=2 * 1024,
+    # Bumped from 2 KB after proto v2: the MoonRequest/MoonResponse oneof
+    # unions are now dominated by HttpRequest (~4.3 KB) / HttpResponse
+    # (~6 KB) because nanopb bakes max_size fields as fixed char arrays.
+    # We heap-allocate the big structs in all sender/receiver paths, but
+    # keep a generous service stack anyway so unexpected deep call chains
+    # don't MPU-fault again.
+    stack_size=4 * 1024,
     # Start after bt (order 20) — we depend on the BT stack being
     # initialised before we try to advertise/scan.
     order=30,
