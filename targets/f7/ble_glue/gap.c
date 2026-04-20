@@ -732,11 +732,12 @@ static void set_manufacturer_data(uint8_t* mfg_data, uint8_t mfg_data_len) {
  * the phone side surfaces as a pair prompt even though the bond still
  * exists under the phone's identity.
  *
- * Mode 0x03 clears + re-populates the resolving list only (whitelist
- * stays untouched). Safe to call both at init (resolution not yet
- * enabled) and after a fresh pair (resolution enabled; the controller
- * briefly drops resolution for the rebuild, which is fine — we're not
- * scanning at that moment either).
+ * Mode 0x01 clears + re-populates the resolving list only (whitelist
+ * stays untouched — that's what aci_gap_configure_whitelist did). Safe
+ * to call both at init (resolution not yet enabled) and after a fresh
+ * pair (resolution enabled; the controller briefly drops resolution
+ * for the rebuild, which is fine — we're not scanning at that moment
+ * either).
  *
  * Resolving-list capacity on STM32WB is typically 8; buffer sized to
  * 16 in case a future copro bumps it. */
@@ -753,7 +754,7 @@ static void gap_refresh_resolving_list(void) {
         return;
     }
     tBleStatus rc2 = aci_gap_add_devices_to_list(
-        num_bonded, (List_Entry_t*)bonded, 0x03);
+        num_bonded, (List_Entry_t*)bonded, 0x01);
     if(rc2 != BLE_STATUS_SUCCESS) {
         FURI_LOG_W(TAG, "add_devices_to_list: 0x%02X (n=%u)", rc2, num_bonded);
     } else {
@@ -887,7 +888,7 @@ static void gap_init_svc(Gap* gap, const GapRootSecurityKeys* root_keys) {
 
     /* Populate the controller's resolving list and enable RPA resolution.
      * See gap_refresh_resolving_list for why. Called once at init with
-     * resolution disabled (fresh boot state), so mode 0x03 (clear +
+     * resolution disabled (fresh boot state), so mode 0x01 (clear +
      * re-populate resolving list only) is safe. */
     gap_refresh_resolving_list();
     tBleStatus rr = hci_le_set_address_resolution_enable(1);
