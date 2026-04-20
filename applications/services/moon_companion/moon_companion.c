@@ -4,6 +4,7 @@
 
 #include <furi.h>
 #include <furi_hal.h>
+#include <gap.h>
 #include <storage/storage.h>
 #include <pb_decode.h>
 #include <pb_encode.h>
@@ -86,6 +87,33 @@ static void moon_companion_handle_rx_frame(
     MoonCompanion* moon,
     const uint8_t* data,
     size_t len);
+
+/* Kick off an auto-reconnect. Prefers the identity-based bonded-reconnect
+ * path when we have a captured phone identity (post v0.5 pair), which
+ * skips the scan entirely and lets the controller resolve the phone's
+ * rotating RPA via the HCI resolving list — so the stored LTK is reused
+ * and no fresh SMP (with its Android pair prompt) runs. Falls back to
+ * service-UUID scan for older bonds that pre-date identity capture. */
+static bool moon_companion_begin_reconnect(MoonCompanion* moon) {
+    bool have_identity = false;
+    for(size_t i = 0; i < sizeof(moon->persist.phone_mac); i++) {
+        if(moon->persist.phone_mac[i] != 0) {
+            have_identity = true;
+            break;
+        }
+    }
+    if(have_identity) {
+        FURI_LOG_I(TAG, "Auto-reconnect: direct connect to bonded identity");
+        if(moon_ble_start_reconnect(
+               moon->ble, moon->persist.phone_mac, moon->persist.phone_addr_type)) {
+            return true;
+        }
+        FURI_LOG_W(TAG, "start_reconnect failed — falling back to scan");
+    } else {
+        FURI_LOG_I(TAG, "Auto-reconnect: no identity on file, scanning");
+    }
+    return moon_ble_start_scan(moon->ble);
+}
 
 static void moon_companion_on_rpc_rx(const uint8_t* data, size_t len, void* ctx) {
     MoonCompanion* moon = ctx;
@@ -671,14 +699,40 @@ static void moon_companion_on_pair_connected(MoonCompanion* moon) {
     if(resp->status == moon_companion_v1_MoonStatus_MOON_OK &&
        resp->which_payload == moon_companion_v1_MoonResponse_pair_tag &&
        resp->payload.pair.auth_token.size == MOON_COMPANION_AUTH_TOKEN_SIZE) {
+        /* Capture the phone's BLE identity while we're definitely bonded.
+         * Persisting it lets next boot's auto-reconnect skip the scan and
+         * call gap_connect_bonded directly, which uses the HCI resolving
+         * list to match the phone's rotating RPA back to this identity
+         * and reuse the stored LTK — so no fresh SMP runs and the phone
+         * side sees no pair prompt. */
+        uint8_t peer_addr[GAP_MAC_ADDR_SIZE] = {0};
+        uint8_t peer_addr_type = 0;
+        bool have_identity = gap_get_bonded_peer(peer_addr, &peer_addr_type);
+
         furi_mutex_acquire(moon->mutex, FuriWaitForever);
         memcpy(moon->persist.auth_token, resp->payload.pair.auth_token.bytes,
                MOON_COMPANION_AUTH_TOKEN_SIZE);
         moon->persist.paired = true;
         moon->pairing_active = false;
+        if(have_identity) {
+            memcpy(moon->persist.phone_mac, peer_addr, GAP_MAC_ADDR_SIZE);
+            moon->persist.phone_addr_type = peer_addr_type;
+        }
         furi_mutex_release(moon->mutex);
         moon_companion_save(moon);
-        FURI_LOG_I(TAG, "Paired with phone: %s", resp->payload.pair.phone_name);
+
+        if(have_identity) {
+            FURI_LOG_I(
+                TAG,
+                "Paired with phone %s (identity %02X:%02X:%02X:%02X:%02X:%02X type=%u)",
+                resp->payload.pair.phone_name,
+                peer_addr[5], peer_addr[4], peer_addr[3],
+                peer_addr[2], peer_addr[1], peer_addr[0],
+                peer_addr_type);
+        } else {
+            FURI_LOG_I(TAG, "Paired with phone %s (identity unavailable)",
+                       resp->payload.pair.phone_name);
+        }
     } else {
         FURI_LOG_W(TAG, "Phone refused pairing (status=%d)", resp->status);
     }
@@ -803,7 +857,7 @@ int32_t moon_companion_srv(void* p) {
             moon->state = MoonConnStateDisconnected;
             furi_mutex_release(moon->mutex);
             FURI_LOG_I(TAG, "Resumed");
-            if(moon->persist.paired) moon_ble_start_scan(moon->ble);
+            if(moon->persist.paired) moon_companion_begin_reconnect(moon);
             break;
 
         case MoonMsgReconnect:
@@ -813,8 +867,7 @@ int32_t moon_companion_srv(void* p) {
              * (a concurrent event could have raced us). */
             if(moon->persist.paired && !moon->yielded && !moon->pairing_active &&
                moon_ble_get_state(moon->ble) == MoonBleStateIdle) {
-                FURI_LOG_I(TAG, "Auto-reconnect: re-scanning for paired phone");
-                moon_ble_start_scan(moon->ble);
+                moon_companion_begin_reconnect(moon);
             }
             break;
 

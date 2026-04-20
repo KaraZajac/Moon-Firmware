@@ -59,6 +59,24 @@ void moon_ble_set_state_callback(MoonBle* ble, MoonBleStateCallback cb, void* ct
  * Safe to call from Idle or Error; no-op otherwise. */
 bool moon_ble_start_scan(MoonBle* ble);
 
+/* Skip scanning and initiate a connection directly to a known bonded
+ * peer by its identity address. The controller scans internally and
+ * resolves any RPA the peer is advertising with against the HCI
+ * resolving list, then reuses the stored LTK — so no fresh SMP runs
+ * and the phone side sees no pair prompt.
+ *
+ * identity_addr_type: 0 = public identity, 1 = random static identity
+ * (as returned by gap_get_bonded_peer).
+ *
+ * Safe to call from Idle or Error; no-op otherwise. Intended for the
+ * auto-reconnect path after Flipper boot when persist.phone_mac holds
+ * a previously-captured identity.
+ */
+bool moon_ble_start_reconnect(
+    MoonBle* ble,
+    const uint8_t identity_addr[6],
+    uint8_t identity_addr_type);
+
 /* Stop whatever is happening; tear down connection if connected.
  * Transitions to Idle. */
 void moon_ble_stop(MoonBle* ble);

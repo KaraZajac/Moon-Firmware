@@ -1353,6 +1353,44 @@ void gap_stop_scanning(void) {
  * Central role connections
  */
 
+bool gap_connect_bonded(uint8_t identity_addr_type, const uint8_t* identity_addr) {
+    furi_check(identity_addr);
+    /* Map the raw identity type (0 = public, 1 = random static) to the
+     * HCI Peer_Address_Type value that tells the controller "this is an
+     * identity; resolve incoming RPAs against it via the resolving list":
+     *   0x00 public           -> 0x02 Public Identity (RPA resolved)
+     *   0x01 random static    -> 0x03 Random Identity (RPA resolved)
+     * Any other value falls through unchanged, which is fine for testing
+     * but shouldn't happen in normal use. */
+    uint8_t resolvable_type;
+    if(identity_addr_type == 0x00) {
+        resolvable_type = 0x02;
+    } else if(identity_addr_type == 0x01) {
+        resolvable_type = 0x03;
+    } else {
+        FURI_LOG_W(
+            TAG, "gap_connect_bonded: unexpected identity type 0x%02X", identity_addr_type);
+        resolvable_type = identity_addr_type;
+    }
+    return gap_connect(resolvable_type, identity_addr);
+}
+
+bool gap_get_bonded_peer(uint8_t addr[GAP_MAC_ADDR_SIZE], uint8_t* addr_type) {
+    furi_check(addr);
+    furi_check(addr_type);
+    uint8_t n = 0;
+    Bonded_Device_Entry_t bonded[16];
+    if(aci_gap_get_bonded_devices(&n, bonded) != BLE_STATUS_SUCCESS || n == 0) {
+        return false;
+    }
+    /* Phase 1 contract: we only ever bond with one phone, so return the
+     * first entry. If that ever changes (multi-phone support), expand
+     * the API to take an index. */
+    memcpy(addr, bonded[0].Address, GAP_MAC_ADDR_SIZE);
+    *addr_type = bonded[0].Address_Type;
+    return true;
+}
+
 bool gap_connect(uint8_t address_type, const uint8_t* address) {
     furi_check(gap);
     furi_check(address);

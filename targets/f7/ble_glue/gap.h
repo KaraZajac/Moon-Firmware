@@ -157,6 +157,27 @@ void gap_set_scan_callback(GapScanCallback callback, void* context);
  */
 
 bool gap_connect(uint8_t address_type, const uint8_t* address);
+
+/** Connect to a peer by its bonded IDENTITY address, letting the
+ *  controller resolve whatever RPA the peer is currently advertising
+ *  with via the HCI resolving list. Use this on auto-reconnect to a
+ *  known bonded peer so the existing LTK is reused and no fresh SMP
+ *  (with the user prompt that implies) runs.
+ *
+ *  @param identity_addr_type  Raw identity type from the security DB:
+ *                             0x00 = public, 0x01 = random static.
+ *                             This function internally maps it to the
+ *                             0x02 / 0x03 resolvable-identity variants
+ *                             that aci_gap_create_connection expects. */
+bool gap_connect_bonded(uint8_t identity_addr_type, const uint8_t* identity_addr);
+
+/** Read the first bonded peer's identity, if any.
+ *  Populates addr (6 bytes) and addr_type (0 = public, 1 = random
+ *  static). Returns false when no peer is bonded. Intended for saving
+ *  the peer identity across reboots so gap_connect_bonded can skip
+ *  the scan. */
+bool gap_get_bonded_peer(uint8_t addr[GAP_MAC_ADDR_SIZE], uint8_t* addr_type);
+
 bool gap_disconnect(uint16_t connection_handle);
 uint16_t gap_get_connection_handle(void);
 
