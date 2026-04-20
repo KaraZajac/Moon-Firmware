@@ -94,6 +94,7 @@ static void gap_advertise_start(GapState new_state);
 static int32_t gap_app(void* context);
 static void gap_scan_timer_callback(void* context);
 static void gap_connect_timer_callback(void* context);
+static void gap_refresh_resolving_list(void);
 
 /* ── Multi-connection helpers ────────────────────────────────────────── */
 
