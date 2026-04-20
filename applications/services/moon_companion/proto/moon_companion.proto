@@ -2,6 +2,14 @@ syntax = "proto3";
 
 package moon.companion.v1;
 
+// Android side uses these to emit one Java class per message under the
+// org.soulstone.mooncompanion.proto Java package; nanopb on the Flipper
+// side ignores standard protoc options. Keeping them in the single
+// source-of-truth proto file so the firmware and Android copies stay
+// byte-identical.
+option java_package = "org.soulstone.mooncompanion.proto";
+option java_multiple_files = true;
+
 /*
  * Moon Companion Protocol v1
  *
