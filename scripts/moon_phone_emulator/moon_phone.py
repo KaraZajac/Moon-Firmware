@@ -96,9 +96,21 @@ def _new_auth_token() -> bytes:
 # ── GATT read / write handlers ───────────────────────────────────────
 
 def read_request(characteristic: BlessGATTCharacteristic, **kwargs: Any) -> bytearray:
-    # RPC_TX is write-only from our perspective. Return empty on any read.
-    LOG.debug("read request on %s — ignoring", characteristic.uuid)
-    return bytearray()
+    """Any read hitting us is either (a) a stray probe from the central's
+    GATT cache warm-up or (b) a read of RPC_RX's latest value. Return
+    whatever value we last set (or empty). Must *never* raise — an
+    uncaught exception here becomes an application-defined ATT error
+    (0x91-ish) that macOS treats as a protocol violation and tears the
+    link down. */"""
+    try:
+        LOG.info("READ request on %s", characteristic.uuid)
+        val = characteristic.value if characteristic.value is not None else bytearray()
+        if not isinstance(val, (bytes, bytearray)):
+            val = bytearray(val)
+        return bytearray(val)
+    except Exception:
+        LOG.exception("read_request raised — returning empty")
+        return bytearray()
 
 
 def _send_phone_message(msg: pb.MoonPhoneMessage) -> None:
@@ -231,23 +243,27 @@ def write_request(
     value: bytearray,
     **kwargs: Any,
 ) -> None:
-    """Inbound Flipper-to-phone frame. Parse as MoonRequest, dispatch, notify."""
-    LOG.debug("RX %d bytes on %s", len(value), characteristic.uuid)
-
-    req = pb.MoonRequest()
+    """Inbound Flipper-to-phone frame. Parse as MoonRequest, dispatch, notify.
+    Any uncaught exception here becomes an ATT error that aborts the
+    link, so we funnel everything through a top-level try/except. */"""
     try:
-        req.ParseFromString(bytes(value))
-    except Exception as exc:
-        LOG.exception("Failed to parse inbound MoonRequest: %s", exc)
-        return
+        LOG.info("WRITE %d bytes on %s", len(value), characteristic.uuid)
+        req = pb.MoonRequest()
+        try:
+            req.ParseFromString(bytes(value))
+        except Exception as exc:
+            LOG.exception("Failed to parse inbound MoonRequest: %s", exc)
+            return
 
-    resp = _dispatch_request(req)
-    if resp is None:
-        return
+        resp = _dispatch_request(req)
+        if resp is None:
+            return
 
-    msg = pb.MoonPhoneMessage()
-    msg.response.CopyFrom(resp)
-    _send_phone_message(msg)
+        msg = pb.MoonPhoneMessage()
+        msg.response.CopyFrom(resp)
+        _send_phone_message(msg)
+    except Exception:
+        LOG.exception("write_request raised — swallowing")
 
 
 def subscribe_request(characteristic: BlessGATTCharacteristic) -> None:
@@ -280,6 +296,12 @@ async def main() -> None:
         level=logging.DEBUG if os.environ.get("MOON_PHONE_DEBUG") else logging.INFO,
         format="%(asctime)s %(levelname)-5s %(name)s %(message)s",
     )
+    # Surface bless's own delegate chatter — the reason a central is
+    # disconnecting is usually only visible from inside bless.
+    logging.getLogger("bless").setLevel(logging.DEBUG)
+    logging.getLogger(
+        "bless.backends.corebluetooth.peripheral_manager_delegate"
+    ).setLevel(logging.DEBUG)
 
     LOG.info("Moon Phone Emulator starting")
     LOG.info("Service: %s", SERVICE_UUID)
