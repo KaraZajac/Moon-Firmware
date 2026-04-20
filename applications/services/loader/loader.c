@@ -942,14 +942,45 @@ int32_t loader_srv(void* p) {
                 break;
             }
             case LoaderMessageTypeStartByNameDetachedWithGuiError: {
-                FuriString* error_message = furi_string_alloc();
-                LoaderMessageLoaderStatusResult status = loader_do_start_by_name(
-                    loader, message.start.name, message.start.args, error_message); //-V595
-                loader_show_gui_error(status, message.start.name, error_message);
-                if(status.value != LoaderStatusOk) loader_do_emit_queue_empty_event(loader);
+                /* If an app is currently running, defer this launch onto
+                 * the launch_queue — the AppClosed handler drains it once
+                 * the current app exits. This covers the shim-FAP redirect
+                 * pattern (e.g. protocols_settings → "Moon"): the shim
+                 * calls this from its own execution context, so
+                 * loader->app.thread still points at the shim, and a
+                 * direct loader_do_start_by_name would hit the lock-check
+                 * with "Loader is locked, please close the <shim> first".
+                 *
+                 * MAGIC_THREAD_VALUE (explicit lock, e.g. pin-lock screen)
+                 * isn't a running app, so we let those fail fast the way
+                 * they did before. */
+                bool deferred = false;
+                if(loader_is_application_running(loader)) {
+                    LoaderDeferredLaunchRecord record = {
+                        /* Ownership of the strdup'd name/args transfers
+                         * into the record; nulled below so we don't free
+                         * them a second time. */
+                        .name_or_path = (char*)message.start.name,
+                        .args = (char*)message.start.args,
+                        .flags = LoaderDeferredLaunchFlagGui,
+                    };
+                    if(loader_queue_push(&loader->launch_queue, &record)) {
+                        message.start.name = NULL;
+                        message.start.args = NULL;
+                        deferred = true;
+                    }
+                }
+                if(!deferred) {
+                    FuriString* error_message = furi_string_alloc();
+                    LoaderMessageLoaderStatusResult status = loader_do_start_by_name(
+                        loader, message.start.name, message.start.args, error_message); //-V595
+                    loader_show_gui_error(status, message.start.name, error_message);
+                    if(status.value != LoaderStatusOk)
+                        loader_do_emit_queue_empty_event(loader);
+                    furi_string_free(error_message);
+                }
                 if(message.start.name) free((void*)message.start.name);
                 if(message.start.args) free((void*)message.start.args);
-                furi_string_free(error_message);
                 break;
             }
             case LoaderMessageTypeShowMenu:

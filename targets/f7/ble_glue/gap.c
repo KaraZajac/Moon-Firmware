@@ -66,6 +66,8 @@ typedef struct {
     FuriSemaphore* scan_semaphore;
     FuriTimer* connect_timer; /**< Timeout for central role connection attempts */
     uint32_t fixed_pin; /**< Non-zero = use this PIN for passkey auth */
+    GapCentralPairingCompleteCallback central_pairing_cb; /**< Optional central-role pairing hook */
+    void* central_pairing_ctx;
 } Gap;
 
 typedef enum {
@@ -616,14 +618,33 @@ BleEventFlowStatus ble_event_app_notification(void* pckt) {
                     TAG,
                     "Pairing failed with status: %d. Terminating connection",
                     pairing_complete->Status);
+                /* Still signal the central-role listener so its state
+                 * machine can bail out cleanly instead of sitting on a
+                 * fallback timer for 8+ seconds. */
+                if(gap->central_pairing_cb &&
+                   gap_is_connection_central(pairing_complete->Connection_Handle)) {
+                    gap->central_pairing_cb(
+                        pairing_complete->Connection_Handle,
+                        pairing_complete->Status,
+                        gap->central_pairing_ctx);
+                }
                 aci_gap_terminate(pairing_complete->Connection_Handle, 5);
             } else {
                 bool pair_is_central = gap_is_connection_central(
                     pairing_complete->Connection_Handle);
                 FURI_LOG_I(TAG, "Pairing complete (central=%d)", pair_is_central);
-                if(!pair_is_central) {
+                if(pair_is_central) {
+                    /* Notify the central-role listener (e.g. moon_companion)
+                     * so it can kick off discovery immediately instead of
+                     * waiting on a fixed settle timer. */
+                    if(gap->central_pairing_cb) {
+                        gap->central_pairing_cb(
+                            pairing_complete->Connection_Handle,
+                            0,
+                            gap->central_pairing_ctx);
+                    }
+                } else {
                     // Only notify BT service for peripheral connections (phone companion)
-                    // Central connections (our app) handle pairing completion internally
                     GapEvent event = {
                         .type = GapEventTypeConnected,
                         .connection_handle = pairing_complete->Connection_Handle,
@@ -1214,6 +1235,16 @@ void gap_set_scan_callback(GapScanCallback callback, void* context) {
     furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
     gap->scan_callback = callback;
     gap->scan_context = context;
+    furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
+}
+
+void gap_set_central_pairing_complete_callback(
+    GapCentralPairingCompleteCallback cb,
+    void* context) {
+    furi_check(gap);
+    furi_check(furi_mutex_acquire(gap->state_mutex, FuriWaitForever) == FuriStatusOk);
+    gap->central_pairing_cb = cb;
+    gap->central_pairing_ctx = context;
     furi_check(furi_mutex_release(gap->state_mutex) == FuriStatusOk);
 }
 

@@ -214,6 +214,27 @@ void gap_set_just_works_pairing(void);
  */
 bool gap_pair(uint16_t connection_handle, bool force_rebond);
 
+/** Callback fired on central-role SMP pairing completion.
+ *
+ *  The STM32WB stack delivers ACI_GAP_PAIRING_COMPLETE_VSEVT_CODE for both
+ *  central and peripheral roles. bt_service already consumes the peripheral
+ *  case via the main GapEvent callback; this separate hook lets a central
+ *  (e.g. moon_companion) react event-driven instead of polling.
+ *
+ *  Runs on the BLE event thread — keep it short; post to a queue for
+ *  heavy work. Status 0 = success; non-zero = SMP failure code.
+ */
+typedef void (*GapCentralPairingCompleteCallback)(
+    uint16_t connection_handle,
+    uint8_t status,
+    void* context);
+
+/** Register/replace the central-role pairing-complete callback.
+ *  Pass cb = NULL to clear. Only one listener at a time. */
+void gap_set_central_pairing_complete_callback(
+    GapCentralPairingCompleteCallback cb,
+    void* context);
+
 /*
  * PHY preference — request 1M or 2M PHY per connection
  * Note: STM32WB55 does NOT support LE Coded PHY (Long Range)
