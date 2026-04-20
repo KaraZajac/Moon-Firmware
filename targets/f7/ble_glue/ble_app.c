@@ -63,13 +63,18 @@ static SHCI_C2_Ble_Init_Cmd_Packet_t ble_init_cmd_packet = {
         .ViterbiEnable = CFG_BLE_VITERBI_MODE,
         .Options = CFG_BLE_OPTIONS,
         .HwVersion = 0,
-        .max_coc_initiator_nbr = 32,
+        /* CoC initiator + extended-advertising fields are only honoured
+         * by stm32wb5x_BLE_Stack_full_extended_fw.bin. On the plain
+         * full_fw.bin these are no-ops at best and stack-init rejects
+         * at worst. Keep them zeroed to match the stack we actually
+         * flash (see fbt_options.py COPRO_STACK_BIN). */
+        .max_coc_initiator_nbr = 0,
         .min_tx_power = 0,
         .max_tx_power = 0,
         .rx_model_config = 1,
         /* New stack (13.3->15.0) */
-        .max_adv_set_nbr = 4, // Extended advertising sets (up to GAP_EXT_ADV_MAX_SETS)
-        .max_adv_data_len = 1650, // Only used if SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV is set
+        .max_adv_set_nbr = 0, // no extended advertising on plain full_fw.bin
+        .max_adv_data_len = 0, // only meaningful with SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV
         .tx_path_compens = 0, // RF TX Path Compensation, * 0.1 dB
         .rx_path_compens = 0, // RF RX Path Compensation, * 0.1 dB
         .ble_core_version = SHCI_C2_BLE_INIT_BLE_CORE_5_4,

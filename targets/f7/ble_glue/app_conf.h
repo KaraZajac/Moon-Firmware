@@ -173,9 +173,14 @@
  *          0: LE Power Class 2-3
  * other bits: reserved (shall be set to 0)
  */
+/* EXT_ADV is NOT supported by stm32wb5x_BLE_Stack_full_fw.bin (the
+ * "full" stack is actually a modified Basic Features build per ST's
+ * release notes table). Selecting it here causes the CM0+ stack init
+ * to reject the packet, which boot-loops the device. Extended adv
+ * lives in full_extended_fw.bin only, which we don't use. */
 #define CFG_BLE_OPTIONS                                                                 \
     (SHCI_C2_BLE_INIT_OPTIONS_LL_HOST | SHCI_C2_BLE_INIT_OPTIONS_WITH_SVC_CHANGE_DESC | \
-     SHCI_C2_BLE_INIT_OPTIONS_DEVICE_NAME_RO | SHCI_C2_BLE_INIT_OPTIONS_EXT_ADV |       \
+     SHCI_C2_BLE_INIT_OPTIONS_DEVICE_NAME_RO | SHCI_C2_BLE_INIT_OPTIONS_NO_EXT_ADV |    \
      SHCI_C2_BLE_INIT_OPTIONS_CS_ALGO2 | SHCI_C2_BLE_INIT_OPTIONS_POWER_CLASS_2_3)
 
 /**
