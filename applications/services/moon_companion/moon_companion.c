@@ -221,6 +221,7 @@ static void moon_companion_handle_rx_frame(
     MoonCompanion* moon,
     const uint8_t* data,
     size_t len) {
+    FURI_LOG_I(TAG, "RX %zu bytes from phone", len);
     /* Envelope is MoonPhoneMessage — oneof{MoonResponse, MoonEvent}. */
     moon_companion_v1_MoonPhoneMessage* msg =
         malloc(sizeof(moon_companion_v1_MoonPhoneMessage));
@@ -586,6 +587,7 @@ static void moon_companion_on_authed_connected(MoonCompanion* moon) {
  * a bare MoonRequest{pair} and wait (asynchronously) for PairResponse
  * to land in the RPC dispatch. */
 static void moon_companion_on_pair_connected(MoonCompanion* moon) {
+    FURI_LOG_I(TAG, "on_pair_connected: sending PairRequest");
     moon_companion_v1_MoonRequest req = moon_companion_v1_MoonRequest_init_zero;
     req.request_id = moon_companion_next_rid(moon);
     /* No auth_token yet — phone must accept unpaired peers only while
@@ -606,10 +608,13 @@ static void moon_companion_on_pair_connected(MoonCompanion* moon) {
         return;
     }
 
+    FURI_LOG_I(TAG, "on_pair_connected: PairRequest sent (rid=%lu), awaiting response",
+               (unsigned long)req.request_id);
     /* Block briefly on the RPC response. Real deployments should decouple
      * this from the service thread — for Phase 1a we just wait. */
     uint32_t flags = furi_event_flag_wait(
         slot->done, 0x1, FuriFlagWaitAny, MOON_COMPANION_RPC_TIMEOUT_MS);
+    FURI_LOG_I(TAG, "on_pair_connected: wait returned flags=0x%08lX", (unsigned long)flags);
 
     furi_mutex_acquire(moon->mutex, FuriWaitForever);
     bool filled = slot->filled;
@@ -1052,6 +1057,10 @@ int32_t moon_companion_srv(void* p) {
                 /* Link is back up — cancel any pending reconnect timer
                  * so we don't kick off a redundant scan. */
                 furi_timer_stop(moon->reconnect_timer);
+                FURI_LOG_I(TAG,
+                           "BLE Connected: pairing_active=%d paired=%d",
+                           moon->pairing_active,
+                           moon->persist.paired);
                 if(moon->pairing_active) {
                     moon_companion_on_pair_connected(moon);
                 } else if(moon->persist.paired) {
