@@ -5,7 +5,6 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <storage/storage.h>
-#include <furi_ble/l2cap_coc.h>
 #include <pb_decode.h>
 #include <pb_encode.h>
 
