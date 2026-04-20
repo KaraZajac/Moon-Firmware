@@ -12,6 +12,7 @@ App(
         "bad_kb",
         "u2f",
         "moon_app",
+        "moon_os",
         "archive",
         "main_apps_on_start",
     ],

@@ -1,4 +1,4 @@
-#include "../moon_companion_settings_app.h"
+#include "../moon_os_app.h"
 
 enum StartIndex {
     StartIndexStatus,
@@ -18,23 +18,23 @@ static const char* connection_state_text(MoonConnectionState s) {
 }
 
 static void on_enter_cb(void* context, uint32_t index) {
-    MoonCompSettingsApp* app = context;
+    MoonOsApp* app = context;
     switch(index) {
     case StartIndexPair:
         view_dispatcher_send_custom_event(
-            app->view_dispatcher, MoonCompSettingsEventPair);
+            app->view_dispatcher, MoonOsEventPair);
         break;
     case StartIndexForget:
         view_dispatcher_send_custom_event(
-            app->view_dispatcher, MoonCompSettingsEventForget);
+            app->view_dispatcher, MoonOsEventForget);
         break;
     default:
         break;
     }
 }
 
-void moon_companion_settings_scene_start_on_enter(void* context) {
-    MoonCompSettingsApp* app = context;
+void moon_os_scene_start_on_enter(void* context) {
+    MoonOsApp* app = context;
     VariableItemList* list = app->var_item_list;
     VariableItem* item;
 
@@ -51,28 +51,28 @@ void moon_companion_settings_scene_start_on_enter(void* context) {
 
     variable_item_list_set_enter_callback(list, on_enter_cb, app);
 
-    view_dispatcher_switch_to_view(app->view_dispatcher, MoonCompSettingsViewList);
+    view_dispatcher_switch_to_view(app->view_dispatcher, MoonOsViewList);
 }
 
-bool moon_companion_settings_scene_start_on_event(void* context, SceneManagerEvent event) {
-    MoonCompSettingsApp* app = context;
+bool moon_os_scene_start_on_event(void* context, SceneManagerEvent event) {
+    MoonOsApp* app = context;
     if(event.type != SceneManagerEventTypeCustom) return false;
 
-    if(event.event == MoonCompSettingsEventPair) {
-        scene_manager_next_scene(app->scene_manager, MoonCompSettingsScenePair);
+    if(event.event == MoonOsEventPair) {
+        scene_manager_next_scene(app->scene_manager, MoonOsScenePair);
         return true;
     }
-    if(event.event == MoonCompSettingsEventForget) {
+    if(event.event == MoonOsEventForget) {
         moon_companion_forget(app->moon);
         /* Rebuild the list so "Pair Phone" label flips back. */
         variable_item_list_reset(app->var_item_list);
-        moon_companion_settings_scene_start_on_enter(app);
+        moon_os_scene_start_on_enter(app);
         return true;
     }
     return false;
 }
 
-void moon_companion_settings_scene_start_on_exit(void* context) {
-    MoonCompSettingsApp* app = context;
+void moon_os_scene_start_on_exit(void* context) {
+    MoonOsApp* app = context;
     variable_item_list_reset(app->var_item_list);
 }

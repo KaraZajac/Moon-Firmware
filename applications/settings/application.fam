@@ -8,7 +8,6 @@ App(
         "clock_settings",
         "input_settings",
         "about",
-        "moon_companion_settings",
         "interface_settings",
         "protocols_settings",
         "misc_settings",

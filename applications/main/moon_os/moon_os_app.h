@@ -9,20 +9,20 @@
 
 #include <moon_companion/moon_companion.h>
 
-#include "scenes/moon_companion_settings_scene.h"
+#include "scenes/moon_os_scene.h"
 
 typedef enum {
-    MoonCompSettingsViewList,
-    MoonCompSettingsViewPopup,
-} MoonCompSettingsView;
+    MoonOsViewList,
+    MoonOsViewPopup,
+} MoonOsView;
 
 typedef enum {
     /* First 10 reserved for list indices. */
-    MoonCompSettingsEventReserved = 10,
-    MoonCompSettingsEventPair,
-    MoonCompSettingsEventForget,
-    MoonCompSettingsEventPairDone,
-} MoonCompSettingsCustomEvent;
+    MoonOsEventReserved = 10,
+    MoonOsEventPair,
+    MoonOsEventForget,
+    MoonOsEventPairDone,
+} MoonOsCustomEvent;
 
 typedef struct {
     Gui* gui;
@@ -36,4 +36,4 @@ typedef struct {
 
     char pin[7];
     FuriTimer* poll_timer; /* polls moon_companion_get_state on the pair popup */
-} MoonCompSettingsApp;
+} MoonOsApp;

@@ -1,11 +1,11 @@
-#include "../moon_companion_settings_app.h"
+#include "../moon_os_app.h"
 
 #define PAIR_TIMEOUT_MS    30000
 #define PAIR_POLL_PERIOD_MS  300
 
 static uint32_t poll_elapsed_ms;
 
-static void update_popup(MoonCompSettingsApp* app, MoonConnectionState state) {
+static void update_popup(MoonOsApp* app, MoonConnectionState state) {
     /* Just-Works pairing: no PIN is exchanged. Keep the header stable
      * instead of flashing a decorative 6-digit placeholder the user can't
      * do anything with. */
@@ -43,7 +43,7 @@ static void update_popup(MoonCompSettingsApp* app, MoonConnectionState state) {
 }
 
 static void poll_tick(void* ctx) {
-    MoonCompSettingsApp* app = ctx;
+    MoonOsApp* app = ctx;
     poll_elapsed_ms += PAIR_POLL_PERIOD_MS;
 
     MoonConnectionState state = moon_companion_get_state(app->moon);
@@ -55,7 +55,7 @@ static void poll_tick(void* ctx) {
      * 1s to land and then confirm via is_paired. */
     if(moon_companion_is_paired(app->moon)) {
         view_dispatcher_send_custom_event(
-            app->view_dispatcher, MoonCompSettingsEventPairDone);
+            app->view_dispatcher, MoonOsEventPairDone);
         furi_timer_stop(app->poll_timer);
         return;
     }
@@ -67,8 +67,8 @@ static void poll_tick(void* ctx) {
     }
 }
 
-void moon_companion_settings_scene_pair_on_enter(void* context) {
-    MoonCompSettingsApp* app = context;
+void moon_os_scene_pair_on_enter(void* context) {
+    MoonOsApp* app = context;
     poll_elapsed_ms = 0;
 
     if(!moon_companion_begin_pairing(app->moon, app->pin)) {
@@ -77,7 +77,7 @@ void moon_companion_settings_scene_pair_on_enter(void* context) {
 
     popup_reset(app->popup);
     update_popup(app, moon_companion_get_state(app->moon));
-    view_dispatcher_switch_to_view(app->view_dispatcher, MoonCompSettingsViewPopup);
+    view_dispatcher_switch_to_view(app->view_dispatcher, MoonOsViewPopup);
 
     if(!app->poll_timer) {
         app->poll_timer = furi_timer_alloc(poll_tick, FuriTimerTypePeriodic, app);
@@ -85,18 +85,18 @@ void moon_companion_settings_scene_pair_on_enter(void* context) {
     furi_timer_start(app->poll_timer, furi_ms_to_ticks(PAIR_POLL_PERIOD_MS));
 }
 
-bool moon_companion_settings_scene_pair_on_event(void* context, SceneManagerEvent event) {
-    MoonCompSettingsApp* app = context;
+bool moon_os_scene_pair_on_event(void* context, SceneManagerEvent event) {
+    MoonOsApp* app = context;
     if(event.type == SceneManagerEventTypeCustom &&
-       event.event == MoonCompSettingsEventPairDone) {
+       event.event == MoonOsEventPairDone) {
         update_popup(app, moon_companion_get_state(app->moon));
         return true;
     }
     return false;
 }
 
-void moon_companion_settings_scene_pair_on_exit(void* context) {
-    MoonCompSettingsApp* app = context;
+void moon_os_scene_pair_on_exit(void* context) {
+    MoonOsApp* app = context;
     if(app->poll_timer) furi_timer_stop(app->poll_timer);
     moon_companion_cancel_pairing(app->moon);
     popup_reset(app->popup);

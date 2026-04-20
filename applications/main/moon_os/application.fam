@@ -1,0 +1,13 @@
+App(
+    appid="moon_os",
+    name="MoonOS",
+    apptype=FlipperAppType.MENUEXTERNAL,
+    entry_point="moon_os_app",
+    stack_size=2 * 1024,
+    requires=[
+        "gui",
+        "moon_companion",
+    ],
+    icon="A_Moon_14",
+    fap_category="assets",
+)
