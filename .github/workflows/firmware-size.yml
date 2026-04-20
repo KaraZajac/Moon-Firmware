@@ -1,0 +1,31 @@
+name: Firmware Size Guard
+
+# Fail the build if firmware growth has eaten into the XIP flash budget
+# enough that large FAPs (SubGHz ~258 KB, NFC ~183 KB) can no longer be
+# loaded. See scripts/check_firmware_size.py for the math.
+
+on:
+  push:
+    branches: [dev, main, release]
+  pull_request:
+    branches: [dev, main, release]
+
+jobs:
+  size-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build firmware
+        run: ./fbt firmware_all
+
+      - name: Check firmware size
+        run: |
+          python3 scripts/check_firmware_size.py \
+            build/f7-firmware-C/firmware.elf \
+            --hard-floor 270336 \
+            --warn-below 286720

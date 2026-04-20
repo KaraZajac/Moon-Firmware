@@ -13,8 +13,10 @@ package moon.companion.v1;
  * phone status changes).
  *
  * All envelopes fit comfortably inside the default ATT MTU once the
- * connection negotiates ≥ 247 bytes. Larger payloads (FAP / firmware
- * binaries) travel on a side-channel L2CAP CoC — not in this schema.
+ * connection negotiates ≥ 247 bytes. Larger payloads (HTTP response
+ * bodies over ~4 KB, FAP / firmware binaries) travel on a side-channel
+ * L2CAP CoC — the RPC response carries the SPSM + session_id handshake
+ * and the bytes flow out-of-band.
  */
 
 // ── Envelopes ──────────────────────────────────────────────────────────
@@ -24,30 +26,41 @@ message MoonRequest {
     bytes  auth_token = 2;           // 16 bytes from pairing (MoonPair)
 
     oneof payload {
-        // Pairing (Phase 1)
+        // Pairing
         PairRequest                pair                 = 3;
 
-        // Tier 1 — MVP
+        // Core services — available to every FAP via moon_companion C API
         GetPositionRequest         get_position         = 10;
         SubscribePositionRequest   subscribe_position   = 11;
         UnsubscribePositionRequest unsubscribe_position = 12;
         GetTimeRequest             get_time             = 20;
         SendNotificationRequest    send_notification    = 30;
 
-        // Bulk transfer side-channel (Phase 3). The RPC channel itself
-        // stays on GATT notifications; these verbs are just the handshake
-        // that tells the Flipper which L2CAP CoC PSM the phone is
-        // listening on for a specific transfer intent.
+        // Bulk transfer side-channel handshake (CoC dial target). The
+        // RPC channel itself stays on GATT notifications; these verbs
+        // tell the Flipper which L2CAP CoC PSM the phone is listening
+        // on for a specific transfer intent.
         OpenBulkChannelRequest     open_bulk_channel    = 40;
         CloseBulkChannelRequest    close_bulk_channel   = 41;
 
-        // Tier 2 — stubs for now, filled in later
-        ListAppUpdatesRequest      list_app_updates     = 100;
-        DownloadAppRequest         download_app         = 101;
-        CheckFirmwareUpdateRequest check_firmware       = 110;
-        HttpGetRequest             http_get             = 200;
-        HttpPostRequest            http_post            = 201;
+        // Generic HTTP proxy. Phone terminates TLS. Any method, any URL,
+        // any headers. Small responses (≤ 4 KB) come back inline in the
+        // MoonResponse; larger responses stream over L2CAP CoC via the
+        // SPSM + session_id fields of HttpResponse.
+        HttpRequest                http                 = 50;
     }
+
+    // Reserved for V2 raw-socket (TCP/UDP) proxy if a real use case
+    // emerges — noproto-style SocketConnect/Send/Recv/Close/StateChanged.
+    reserved 60 to 69;
+
+    // Historical Tier 2 verbs removed in proto v2 — kept reserved so an
+    // old client can't silently mean something new.
+    //   100 = list_app_updates  101 = download_app   110 = check_firmware
+    //   200 = http_get          201 = http_post
+    // App-store/updater semantics now live in FAPs that use the generic
+    // http verb against a catalog server.
+    reserved 100, 101, 110, 200, 201;
 }
 
 message MoonResponse {
@@ -60,10 +73,12 @@ message MoonResponse {
         TimeData                time              = 20;
         NotificationAck         notification      = 30;
         OpenBulkChannelResponse open_bulk_channel = 40;
-        UpdateList              updates           = 100;
-        HttpResponse            http              = 200;
+        HttpResponse            http              = 50;
         StatusAck               ack               = 255;
     }
+
+    reserved 60 to 69;
+    reserved 100, 110, 200;
 }
 
 // Phone-initiated push. No request_id; phone emits these on its own
@@ -188,7 +203,7 @@ message PhoneStatus {
     bool   has_network = 3;
 }
 
-// ── Bulk transfer side-channel (Phase 3) ───────────────────────────────
+// ── Bulk transfer side-channel ─────────────────────────────────────────
 //
 // The phone keeps an L2CAP CoC server socket open on a dynamically
 // allocated SPSM. When the Flipper wants to move bulk data it sends an
@@ -200,6 +215,10 @@ message PhoneStatus {
 // BULK_ECHO_TEST is the bring-up fixture: the phone streams a
 // deterministic byte pattern so the Flipper can verify the channel end
 // to end without any real content source involved.
+//
+// BULK_HTTP_RESPONSE is used internally by the HttpRequest flow when the
+// response body exceeds the inline cap (~4 KB). The Flipper's HTTP C API
+// opens this transparently — FAP authors don't touch it directly.
 
 enum BulkKind {
     BULK_UNSPECIFIED        = 0;
@@ -207,6 +226,7 @@ enum BulkKind {
     BULK_UPLOAD_FILE        = 2;   // Flipper → phone, capture/dump
     BULK_FIRMWARE_UPDATE    = 3;   // phone → Flipper, .dfu image
     BULK_ECHO_TEST          = 4;   // phone → Flipper, bring-up fixture
+    BULK_HTTP_RESPONSE      = 5;   // phone → Flipper, large HTTP response body
 }
 
 message OpenBulkChannelRequest {
@@ -224,48 +244,24 @@ message CloseBulkChannelRequest {
     bytes session_id = 1;
 }
 
-// ── Tier 2: stubs (filled in later) ────────────────────────────────────
+// ── HTTP proxy ─────────────────────────────────────────────────────────
+//
+// Any FAP can issue an HTTP(S) request through the paired phone. The
+// phone terminates TLS using the system trust store. No per-FAP auth
+// gate — the BLE pairing is the trust boundary.
+//
+// Small responses (body ≤ 4 KB, headers ≤ ~1 KB) fit inline in
+// HttpResponse. For larger responses the phone signals `use_bulk` by
+// setting `bulk_bytes > 0` and `spsm > 0`, and the Flipper opens an
+// L2CAP CoC to the returned SPSM to stream the body.
 
-message ListAppUpdatesRequest {
-    repeated AppVersion installed = 1;
-}
-
-message AppVersion {
-    string appid   = 1;
-    string version = 2;
-}
-
-message UpdateList {
-    repeated AvailableUpdate updates = 1;
-}
-
-message AvailableUpdate {
-    string appid       = 1;
-    string new_version = 2;
-    string source_url  = 3;   // phone uses this to fetch via HTTP, then streams over CoC
-    uint32 size_bytes  = 4;
-}
-
-message DownloadAppRequest {
-    string appid     = 1;
-    string source_url = 2;   // from AvailableUpdate.source_url
-}
-
-message CheckFirmwareUpdateRequest {
-    string current_version = 1;
-}
-
-// ── Tier 2: HTTP proxy (stub) ──────────────────────────────────────────
-
-message HttpGetRequest {
-    string url = 1;
-    repeated HttpHeader headers = 2;
-}
-
-message HttpPostRequest {
-    string url = 1;
-    repeated HttpHeader headers = 2;
-    bytes  body = 3;
+message HttpRequest {
+    string method     = 1;   // GET | POST | PUT | DELETE | PATCH | HEAD
+    string url        = 2;   // full URL including scheme (http:// or https://)
+    repeated HttpHeader headers = 3;
+    bytes  body       = 4;
+    uint32 timeout_ms = 5;   // phone enforces; 0 = phone default (30 s)
+    bool   use_bulk   = 6;   // hint: caller expects large body, prefer CoC
 }
 
 message HttpHeader {
@@ -276,5 +272,8 @@ message HttpHeader {
 message HttpResponse {
     uint32 status_code = 1;
     repeated HttpHeader headers = 2;
-    bytes  body = 3;
+    bytes  body        = 3;   // empty when bulk_bytes > 0
+    uint64 bulk_bytes  = 4;   // nonzero → body streams on CoC, not inline
+    uint32 spsm        = 5;   // L2CAP SPSM to dial when bulk_bytes > 0
+    bytes  session_id  = 6;   // 8 bytes; correlates CoC to this response
 }

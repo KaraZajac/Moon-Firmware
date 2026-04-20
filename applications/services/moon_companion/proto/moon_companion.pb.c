@@ -6,16 +6,16 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(moon_companion_v1_MoonRequest, moon_companion_v1_MoonRequest, 2)
+PB_BIND(moon_companion_v1_MoonRequest, moon_companion_v1_MoonRequest, 4)
 
 
-PB_BIND(moon_companion_v1_MoonResponse, moon_companion_v1_MoonResponse, 2)
+PB_BIND(moon_companion_v1_MoonResponse, moon_companion_v1_MoonResponse, 4)
 
 
 PB_BIND(moon_companion_v1_MoonEvent, moon_companion_v1_MoonEvent, AUTO)
 
 
-PB_BIND(moon_companion_v1_MoonPhoneMessage, moon_companion_v1_MoonPhoneMessage, 2)
+PB_BIND(moon_companion_v1_MoonPhoneMessage, moon_companion_v1_MoonPhoneMessage, 4)
 
 
 PB_BIND(moon_companion_v1_PairRequest, moon_companion_v1_PairRequest, AUTO)
@@ -63,34 +63,13 @@ PB_BIND(moon_companion_v1_OpenBulkChannelResponse, moon_companion_v1_OpenBulkCha
 PB_BIND(moon_companion_v1_CloseBulkChannelRequest, moon_companion_v1_CloseBulkChannelRequest, AUTO)
 
 
-PB_BIND(moon_companion_v1_ListAppUpdatesRequest, moon_companion_v1_ListAppUpdatesRequest, 2)
-
-
-PB_BIND(moon_companion_v1_AppVersion, moon_companion_v1_AppVersion, AUTO)
-
-
-PB_BIND(moon_companion_v1_UpdateList, moon_companion_v1_UpdateList, 2)
-
-
-PB_BIND(moon_companion_v1_AvailableUpdate, moon_companion_v1_AvailableUpdate, AUTO)
-
-
-PB_BIND(moon_companion_v1_DownloadAppRequest, moon_companion_v1_DownloadAppRequest, AUTO)
-
-
-PB_BIND(moon_companion_v1_CheckFirmwareUpdateRequest, moon_companion_v1_CheckFirmwareUpdateRequest, AUTO)
-
-
-PB_BIND(moon_companion_v1_HttpGetRequest, moon_companion_v1_HttpGetRequest, 2)
-
-
-PB_BIND(moon_companion_v1_HttpPostRequest, moon_companion_v1_HttpPostRequest, 2)
+PB_BIND(moon_companion_v1_HttpRequest, moon_companion_v1_HttpRequest, 2)
 
 
 PB_BIND(moon_companion_v1_HttpHeader, moon_companion_v1_HttpHeader, AUTO)
 
 
-PB_BIND(moon_companion_v1_HttpResponse, moon_companion_v1_HttpResponse, 2)
+PB_BIND(moon_companion_v1_HttpResponse, moon_companion_v1_HttpResponse, 4)
 
 
 

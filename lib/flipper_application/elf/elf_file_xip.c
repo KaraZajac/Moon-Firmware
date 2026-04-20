@@ -25,17 +25,19 @@ void xip_region_init(XipRegion* region) {
     }
 
     size_t free_size = free_end - free_start;
-    if(free_size < XIP_REGION_MAX_SIZE) {
+    size_t region_size = MIN(free_size, (size_t)XIP_REGION_MAX_SIZE);
+
+    if(region_size < XIP_REGION_MIN_SIZE) {
         FURI_LOG_W(
             TAG,
-            "Not enough free flash for XIP: %zu available, %u needed",
-            free_size,
-            XIP_REGION_MAX_SIZE);
+            "Flash too fragmented for XIP: %zu available, %u minimum",
+            region_size,
+            XIP_REGION_MIN_SIZE);
         return;
     }
 
     region->base_addr = (uint32_t)free_start;
-    region->end_addr = region->base_addr + XIP_REGION_MAX_SIZE;
+    region->end_addr = region->base_addr + region_size;
     /* Reserve space for cache header at start of region */
     region->data_start = region->base_addr + XIP_CACHE_HEADER_SIZE;
     region->next_free = region->data_start;
@@ -45,10 +47,10 @@ void xip_region_init(XipRegion* region) {
 
     FURI_LOG_I(
         TAG,
-        "Region initialized: 0x%08lX - 0x%08lX (%u KB, header at base)",
+        "Region initialized: 0x%08lX - 0x%08lX (%zu KB, header at base)",
         region->base_addr,
         region->end_addr,
-        XIP_REGION_MAX_SIZE / 1024);
+        region_size / 1024);
 }
 
 void xip_region_release(XipRegion* region) {

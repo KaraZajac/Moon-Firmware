@@ -355,6 +355,170 @@ bool moon_companion_send_notification(
     return false;
 }
 
+/* ── HTTP proxy ────────────────────────────────────────────────────── */
+
+bool moon_companion_http_request(
+    MoonCompanion* moon,
+    const MoonHttpRequest* req,
+    MoonHttpResponse* resp_out) {
+    furi_check(moon);
+    furi_check(req);
+    furi_check(req->url);
+    furi_check(resp_out);
+
+    memset(resp_out, 0, sizeof(*resp_out));
+
+    if(moon_ble_get_state(moon->ble) != MoonBleStateConnected ||
+       !moon->persist.paired) {
+        FURI_LOG_W(TAG, "http_request: not connected/paired");
+        return false;
+    }
+
+    /* Build MoonRequest{http}. */
+    moon_companion_v1_MoonRequest pbreq = moon_companion_v1_MoonRequest_init_zero;
+    pbreq.request_id = moon_companion_next_rid(moon);
+    pbreq.auth_token.size = MOON_COMPANION_AUTH_TOKEN_SIZE;
+    memcpy(pbreq.auth_token.bytes, moon->persist.auth_token,
+           MOON_COMPANION_AUTH_TOKEN_SIZE);
+    pbreq.which_payload = moon_companion_v1_MoonRequest_http_tag;
+
+    moon_companion_v1_HttpRequest* h = &pbreq.payload.http;
+    strncpy(h->method, req->method ? req->method : "GET", sizeof(h->method) - 1);
+    strncpy(h->url, req->url, sizeof(h->url) - 1);
+    h->timeout_ms = req->timeout_ms;
+    h->use_bulk = false; /* v1: caller cannot hint bulk; phone decides */
+
+    if(req->headers && req->headers_count > 0) {
+        size_t n = req->headers_count;
+        if(n > sizeof(h->headers) / sizeof(h->headers[0])) {
+            n = sizeof(h->headers) / sizeof(h->headers[0]);
+        }
+        for(size_t i = 0; i < n; i++) {
+            if(req->headers[i].key) {
+                strncpy(h->headers[i].key, req->headers[i].key,
+                        sizeof(h->headers[i].key) - 1);
+            }
+            if(req->headers[i].value) {
+                strncpy(h->headers[i].value, req->headers[i].value,
+                        sizeof(h->headers[i].value) - 1);
+            }
+        }
+        h->headers_count = (pb_size_t)n;
+    }
+
+    if(req->body && req->body_len > 0) {
+        size_t n = req->body_len;
+        if(n > sizeof(h->body.bytes)) n = sizeof(h->body.bytes);
+        memcpy(h->body.bytes, req->body, n);
+        h->body.size = (pb_size_t)n;
+    }
+
+    /* Begin RPC slot. */
+    MoonRpcInFlight* slot = moon_companion_begin_rpc(moon, pbreq.request_id);
+    if(!slot) {
+        FURI_LOG_E(TAG, "http_request: RPC table full");
+        return false;
+    }
+
+    if(!moon_companion_encode_and_send(moon, &pbreq)) {
+        /* pb_encode may have rejected the envelope as too large for a
+         * single GATT notification; the FAP's URL + headers + body is
+         * over budget. */
+        FURI_LOG_E(TAG, "http_request: encode/send failed (envelope too large?)");
+        moon_companion_finish_rpc(moon, slot);
+        return false;
+    }
+
+    /* Wait for response. Phone side has its own timeout; we allow a bit
+     * of headroom here. */
+    uint32_t wait_ms = req->timeout_ms ? req->timeout_ms + 5000 : 35000;
+    uint32_t flags = furi_event_flag_wait(
+        slot->done, 0x1, FuriFlagWaitAny, wait_ms);
+
+    bool ok = false;
+    furi_mutex_acquire(moon->mutex, FuriWaitForever);
+    bool filled = slot->filled;
+    moon_companion_v1_MoonResponse* resp = slot->response_buf;
+    slot->response_buf = NULL;
+    furi_mutex_release(moon->mutex);
+
+    if((flags & FuriFlagError) || !filled || !resp) {
+        FURI_LOG_W(TAG, "http_request: RPC timed out");
+        if(resp) free(resp);
+        moon_companion_finish_rpc(moon, slot);
+        return false;
+    }
+
+    if(resp->which_payload == moon_companion_v1_MoonResponse_http_tag) {
+        const moon_companion_v1_HttpResponse* hr = &resp->payload.http;
+        resp_out->status_code = hr->status_code;
+
+        /* Copy headers. */
+        if(hr->headers_count > 0) {
+            resp_out->headers = malloc(hr->headers_count * sizeof(MoonHttpHeaderOut));
+            if(resp_out->headers) {
+                for(pb_size_t i = 0; i < hr->headers_count; i++) {
+                    strncpy(resp_out->headers[i].key, hr->headers[i].key,
+                            sizeof(resp_out->headers[i].key) - 1);
+                    resp_out->headers[i].key[sizeof(resp_out->headers[i].key) - 1] = '\0';
+                    strncpy(resp_out->headers[i].value, hr->headers[i].value,
+                            sizeof(resp_out->headers[i].value) - 1);
+                    resp_out->headers[i].value[sizeof(resp_out->headers[i].value) - 1] = '\0';
+                }
+                resp_out->headers_count = hr->headers_count;
+            }
+        }
+
+        if(hr->bulk_bytes > 0) {
+            /* Phone signalled bulk transfer. v1: we surface the metadata
+             * and return true — the caller can consume it diagnostically
+             * or, in a later build, dial the SPSM to stream. */
+            resp_out->bulk_bytes = hr->bulk_bytes;
+            resp_out->spsm = (uint16_t)hr->spsm;
+            size_t sid = hr->session_id.size;
+            if(sid > sizeof(resp_out->session_id)) sid = sizeof(resp_out->session_id);
+            memcpy(resp_out->session_id, hr->session_id.bytes, sid);
+            resp_out->session_id_len = sid;
+            ok = true;
+        } else if(hr->body.size > 0) {
+            resp_out->body = malloc(hr->body.size);
+            if(resp_out->body) {
+                memcpy(resp_out->body, hr->body.bytes, hr->body.size);
+                resp_out->body_len = hr->body.size;
+                ok = true;
+            } else {
+                FURI_LOG_E(TAG, "http_request: body malloc failed");
+            }
+        } else {
+            /* Empty body is legal (HEAD, 204, etc.) — success. */
+            ok = true;
+        }
+    } else {
+        /* Phone returned a MoonResponse that isn't an HttpResponse — e.g.
+         * an UnauthorizedAck or similar. Reflect status_code best-effort. */
+        FURI_LOG_W(TAG, "http_request: unexpected response payload tag %d",
+                   resp->which_payload);
+    }
+
+    free(resp);
+    moon_companion_finish_rpc(moon, slot);
+    return ok;
+}
+
+void moon_companion_http_response_free(MoonHttpResponse* resp) {
+    if(!resp) return;
+    if(resp->body) {
+        free(resp->body);
+        resp->body = NULL;
+    }
+    if(resp->headers) {
+        free(resp->headers);
+        resp->headers = NULL;
+    }
+    resp->body_len = 0;
+    resp->headers_count = 0;
+}
+
 /* ── Public API — command side ─────────────────────────────────── */
 
 bool moon_companion_begin_pairing(MoonCompanion* moon, char pin_out[7]) {

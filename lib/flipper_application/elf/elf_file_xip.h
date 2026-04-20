@@ -9,10 +9,17 @@
 extern "C" {
 #endif
 
-/** Maximum size of the XIP flash region (300KB = 75 pages of 4KB).
- *  ~520KB free flash available with BLE Full stack; 300KB leaves
- *  ample margin for firmware growth. */
+/** Maximum (ceiling) size of the XIP flash region. The region is sized
+ *  dynamically from whatever free flash remains after the firmware image
+ *  and BLE stack security boundary; this is the upper bound above which
+ *  we don't grow. 300KB = 75 pages of 4KB. */
 #define XIP_REGION_MAX_SIZE (300 * 1024)
+
+/** Minimum viable XIP region. Below this, XIP stays inactive and all
+ *  apps fall back to RAM-only loading. 64KB fits a typical small FAP
+ *  while leaving flash that fragmented to be clearly a bug to
+ *  investigate rather than silently continue. */
+#define XIP_REGION_MIN_SIZE (64 * 1024)
 
 /** Cache header magic value ("XIPC") */
 #define XIP_CACHE_MAGIC 0x58495043

@@ -158,6 +158,70 @@ bool moon_companion_bulk_open_blocking(
     uint32_t* out_bytes_received,
     uint16_t* out_error_code);
 
+/* ── HTTP proxy ────────────────────────────────────────────────────── */
+
+typedef struct {
+    const char* key;
+    const char* value;
+} MoonHttpHeader;
+
+typedef struct {
+    const char* method;                 /* NULL → "GET" */
+    const char* url;                    /* required, full scheme */
+    const MoonHttpHeader* headers;      /* NULL OK when headers_count == 0 */
+    size_t headers_count;
+    const uint8_t* body;                /* NULL OK when body_len == 0 */
+    size_t body_len;
+    uint32_t timeout_ms;                /* 0 → phone default (30 s) */
+} MoonHttpRequest;
+
+typedef struct {
+    char   key[48];
+    char   value[192];
+} MoonHttpHeaderOut;
+
+typedef struct {
+    uint32_t status_code;
+    MoonHttpHeaderOut* headers;         /* owned by service; freed on _response_free */
+    size_t headers_count;
+    uint8_t* body;                      /* inline body; NULL if bulk_bytes > 0 */
+    size_t body_len;                    /* 0 if bulk_bytes > 0 */
+    uint64_t bulk_bytes;                /* nonzero → phone signalled CoC bulk */
+    uint16_t spsm;                      /* L2CAP SPSM to dial for bulk body */
+    uint8_t session_id[8];
+    size_t  session_id_len;
+} MoonHttpResponse;
+
+/* Issue an HTTP(S) request through the paired phone. The phone terminates
+ * TLS using the system trust store.
+ *
+ * On success (return true): resp_out is populated and ownership of its
+ * allocated fields (body, headers) transfers to the caller — call
+ * moon_companion_http_response_free when done.
+ *
+ * Inline vs. bulk:
+ *   - Small responses (body fits in a single GATT notification, ~150 B
+ *     after envelope overhead) arrive inline in resp_out->body.
+ *   - Larger responses arrive with resp_out->bulk_bytes > 0 and
+ *     resp_out->spsm > 0; resp_out->body is NULL. The caller must dial
+ *     the L2CAP CoC (SPSM) to stream the body. Bulk streaming from the
+ *     http API is planned for a follow-up; for now the caller sees the
+ *     bulk indication and can decide how to proceed (retry with a
+ *     narrower URL, or use moon_companion_bulk_open_blocking directly).
+ *
+ * On failure (return false): resp_out->status_code reflects any HTTP
+ * status code the phone managed to return; other fields may be unset.
+ * Do not call _response_free if this returns false.
+ *
+ * Do not call from the Moon Companion service thread — it would deadlock
+ * on the response RPC. Safe from any app thread. */
+bool moon_companion_http_request(
+    MoonCompanion* moon,
+    const MoonHttpRequest* req,
+    MoonHttpResponse* resp_out);
+
+void moon_companion_http_response_free(MoonHttpResponse* resp);
+
 /* ── Notifications (Flipper → phone → user) ────────────────────────── */
 
 /* Asks the phone to show a notification to its user (e.g., "Flipper:

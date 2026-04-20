@@ -1,5 +1,5 @@
 entry,status,name,type,params
-Version,+,87.8,,
+Version,+,88.0,,
 Header,+,applications/drivers/subghz/cc1101_ext/cc1101_ext_interconnect.h,,
 Header,+,applications/main/archive/helpers/archive_helpers_ext.h,,
 Header,+,applications/services/applications.h,,
@@ -2398,6 +2398,8 @@ Function,+,moon_companion_forget,void,MoonCompanion*
 Function,+,moon_companion_get_position,_Bool,"MoonCompanion*, MoonPosition*, uint32_t"
 Function,+,moon_companion_get_state,MoonConnectionState,MoonCompanion*
 Function,+,moon_companion_get_time,_Bool,"MoonCompanion*, MoonTime*"
+Function,+,moon_companion_http_request,_Bool,"MoonCompanion*, const MoonHttpRequest*, MoonHttpResponse*"
+Function,+,moon_companion_http_response_free,void,MoonHttpResponse*
 Function,+,moon_companion_is_paired,_Bool,MoonCompanion*
 Function,+,moon_companion_resume,void,MoonCompanion*
 Function,+,moon_companion_send_notification,_Bool,"MoonCompanion*, const char*, const char*, MoonNotificationPriority"

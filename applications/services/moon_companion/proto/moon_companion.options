@@ -1,8 +1,8 @@
 # nanopb size constraints for moon_companion.proto
 #
 # Everything must fit in a single GATT notification (up to 244 bytes on a
-# 247-byte MTU link). Tier 2 (updates + HTTP proxy) will need larger
-# payloads — those travel on an L2CAP CoC side-channel, not this proto.
+# 247-byte MTU link). HTTP response bodies over ~4 KB travel on an L2CAP
+# CoC side-channel; everything else is inline.
 
 # ── Envelopes ──────────────────────────────────────────────────────────
 *MoonRequest.auth_token       max_size:16
@@ -21,30 +21,23 @@
 *SendNotificationRequest.body   max_size:160
 *SendNotificationRequest.tag    max_size:32
 
-# ── Bulk transfer side-channel (Phase 3) ──────────────────────────────
-*OpenBulkChannelRequest.name      max_size:64
+# ── Bulk transfer side-channel ────────────────────────────────────────
+*OpenBulkChannelRequest.name         max_size:64
 *OpenBulkChannelResponse.session_id  max_size:8
 *CloseBulkChannelRequest.session_id  max_size:8
 
-# ── Tier 2 (Phase 2+) ─────────────────────────────────────────────────
-# Capped aggressively — these are stubs for now. Will revisit when we
-# design the L2CAP CoC side-channel for large payloads.
-*AppVersion.appid             max_size:32
-*AppVersion.version           max_size:16
-*AvailableUpdate.appid        max_size:32
-*AvailableUpdate.new_version  max_size:16
-*AvailableUpdate.source_url   max_size:128
-*ListAppUpdatesRequest.installed  max_count:8
-*UpdateList.updates               max_count:8
-*DownloadAppRequest.appid         max_size:32
-*DownloadAppRequest.source_url    max_size:128
-*CheckFirmwareUpdateRequest.current_version  max_size:16
-*HttpHeader.key               max_size:32
-*HttpHeader.value             max_size:128
-*HttpGetRequest.url           max_size:128
-*HttpGetRequest.headers       max_count:4
-*HttpPostRequest.url          max_size:128
-*HttpPostRequest.headers      max_count:4
-*HttpPostRequest.body         max_size:128
-*HttpResponse.headers         max_count:4
-*HttpResponse.body            max_size:128
+# ── HTTP proxy ────────────────────────────────────────────────────────
+# Request: headers capped so an envelope fits in a handful of GATT
+# notifications. Body capped at 2 KB inline — anything larger means the
+# caller should restructure or use a streaming POST (not yet supported).
+# Response: body inline cap 4 KB; above this the phone signals bulk and
+# streams over CoC.
+*HttpRequest.method           max_size:8
+*HttpRequest.url              max_size:256
+*HttpRequest.headers          max_count:8
+*HttpRequest.body             max_size:2048
+*HttpHeader.key               max_size:48
+*HttpHeader.value             max_size:192
+*HttpResponse.headers         max_count:8
+*HttpResponse.body            max_size:4096
+*HttpResponse.session_id      max_size:8
